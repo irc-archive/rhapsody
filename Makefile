@@ -38,6 +38,7 @@ tar:
 	cp Makefile rhapsody-$(PROGRAMVER)
 	cp configure rhapsody-$(PROGRAMVER)
 	cp README rhapsody-$(PROGRAMVER)
-	tar -czvf rhapsody_$(PROGRAMVER).tgz rhapsody-$(PROGRAMVER)
-
+	tar -cf rhapsody_$(PROGRAMVER).tar rhapsody-$(PROGRAMVER)
+	gzip -c rhapsody_$(PROGRAMVER).tar > rhapsody_$(PROGRAMVER).tgz
+	rm -f rhapsody_$(PROGRAMVER).tar
 

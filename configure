@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PROGRAMNAME="rhapsody"
-PROGRAMVER="0.22a"
+PROGRAMVER="0.23b"
 
 ###########################################################
 # Get command line parameters                             #
@@ -49,10 +49,10 @@ echo ""
 echo "Rhapsody IRC configure script version $PROGRAMVER."
 echo "run \"configure --help\" to get a list of available configuration options."
 
-OS=`uname -s`
-OSNAME=`uname -o`
-OSVER=`uname -r`
-USER=`whoami`
+OS=`uname -s 2>/dev/null`
+OSNAME=`uname -o 2>/dev/null`
+OSVER=`uname -r 2>/dev/null`
+USER=`whoami 2>/dev/null`
 
 echo "The OS appears to be $OS ($OSNAME) version $OSVER."
 echo ""

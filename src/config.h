@@ -21,8 +21,11 @@ int config_channel_exists(config *C, char *name);
 
 int add_config_user(config *C, int listnum, char *name, int order);
 int remove_config_user(config *C, int listnum, config_user *U);
+int remove_config_user_by_name(config *C, int listnum, char *name);
 int config_user_exists(config *C, int listnum, char *name);
 int config_user_exists_exact(config *C, int listnum, char *name);
+config_user *config_user_exact(config *C, int listnum, char *name);
+
 int string_match(char *str, char *exp);
 
 void print_config_info(config *C);

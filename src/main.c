@@ -112,7 +112,9 @@ menu *ChannelUserMenu;
 menu *currentmenu = NULL;
 menu *windowmenu = NULL;
 menu *UserMenu = NULL;
+menu *UserListMenu = NULL;
 menu *CtcpMenu = NULL;
+menu *ControlMenu = NULL;
 menu *DCCMenu = NULL;
 
 menubar *servermenus;
@@ -716,12 +718,14 @@ int process_channel_events(int key){
 	char buffer[MAXDATASIZE];
 	char inputbuffer[MAXDATASIZE];
 	channel *currentchannel;
+	server *currentserver;
 	dcc_chat *new_dccchat;
 	menubar *menus;
 	chat *newchat;
 	int formcode, formkey;
 	
 	currentchannel = currentscreen->screen;
+	currentserver = currentchannel->server;
 	menus = channelmenus;
 
 	// create the window selection menu
@@ -776,11 +780,6 @@ int process_channel_events(int key){
 		set_channel_update_status(currentchannel, U_USER_REFRESH);
 	}
 
-	else if (isprint(key) && currentchannel->selecting == 1){
-		select_next_user_by_key(currentchannel, key);
-		set_channel_update_status(currentchannel, U_USER_REFRESH);
-	}
-
 	else if ((key == KEY_ENTER || key == 10) && currentchannel->selecting < 2){
 		if (currentchannel->selecting == 1){
 			currentchannel->selecting = 2;
@@ -798,7 +797,7 @@ int process_channel_events(int key){
 
 			set_input_buffer (inputline, "");
 			
-			i = parse_input(currentchannel->server, inputbuffer);
+			i = parse_input(currentserver, inputbuffer);
 			if (i == E_CHANGE_SCREEN){
 				return(E_CHANGE_SCREEN);
 			}
@@ -808,6 +807,11 @@ int process_channel_events(int key){
 				printmymsg_channel(currentchannel, inputbuffer);
 			}
 		}
+	}
+	
+	else if (isprint(key) && currentchannel->selecting == 1){
+		select_next_user_by_key(currentchannel, key);
+		set_channel_update_status(currentchannel, U_USER_REFRESH);
 	}
 
 	// handle selected user menu events
@@ -827,18 +831,18 @@ int process_channel_events(int key){
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_WHOIS){
-				sendcmd_server(currentchannel->server, "WHOIS", selected_channel_nick(currentchannel), "", "");
+				sendcmd_server(currentserver, "WHOIS", selected_channel_nick(currentchannel), "", "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_QUERY){
-				if (strcmp(selected_channel_nick(currentchannel), currentchannel->server->nick) == 0){
+				if (strcmp(selected_channel_nick(currentchannel), currentserver->nick) == 0){
 					print_channel(currentchannel, "You can not chat with yourself.\n");
 				}
 				else {
 					if (chat_by_name(selected_channel_nick(currentchannel)) == NULL){
-						newchat = add_chat(selected_channel_nick(currentchannel), currentchannel->server);
+						newchat = add_chat(selected_channel_nick(currentchannel), currentserver);
 						set_channel_update_status(currentchannel, U_ALL_REFRESH);
 						set_chat_update_status(newchat, U_ALL_REFRESH);
 						set_menuline_update_status(menuline, U_ALL_REFRESH);
@@ -851,63 +855,67 @@ int process_channel_events(int key){
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
+
+			/* CTCP Menu */
 			else if (selectedmenu == E_CTCP_PING){
-				sendcmd_server(currentchannel->server, "PRIVMSG", 
+				sendcmd_server(currentserver, "PRIVMSG", 
 					create_ctcp_message("PING"), selected_channel_nick(currentchannel), "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_CTCP_CLIENTINFO){
-				sendcmd_server(currentchannel->server, "PRIVMSG", 
+				sendcmd_server(currentserver, "PRIVMSG", 
 					create_ctcp_message("CLIENTINFO"), selected_channel_nick(currentchannel), "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_CTCP_USERINFO){
-				sendcmd_server(currentchannel->server, "PRIVMSG", 
+				sendcmd_server(currentserver, "PRIVMSG", 
 					create_ctcp_message("USERINFO"), selected_channel_nick(currentchannel), "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_CTCP_VERSION){
-				sendcmd_server(currentchannel->server, "PRIVMSG", 
+				sendcmd_server(currentserver, "PRIVMSG", 
 					create_ctcp_message("VERSION"), selected_channel_nick(currentchannel), "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_CTCP_FINGER){
-				sendcmd_server(currentchannel->server, "PRIVMSG", 
+				sendcmd_server(currentserver, "PRIVMSG", 
 					create_ctcp_message("FINGER"), selected_channel_nick(currentchannel), "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_CTCP_SOURCE){
-				sendcmd_server(currentchannel->server, "PRIVMSG", 
+				sendcmd_server(currentserver, "PRIVMSG", 
 					create_ctcp_message("SOURCE"), selected_channel_nick(currentchannel), "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 			else if (selectedmenu == E_CTCP_TIME){
-				sendcmd_server(currentchannel->server, "PRIVMSG", 
+				sendcmd_server(currentserver, "PRIVMSG", 
 					create_ctcp_message("TIME"), selected_channel_nick(currentchannel), "");
 				currentchannel->selecting = 0;
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
+
+			/* DCC Menu */
 			else if (selectedmenu == E_DCC_CHAT){
 				currentchannel->selecting = 0;
-				if (strcmp(selected_channel_nick(currentchannel), currentchannel->server->nick) == 0){
+				if (strcmp(selected_channel_nick(currentchannel), currentserver->nick) == 0){
 					print_all("You can not DCC chat with yourself.\n");
 					set_channel_update_status(currentchannel, U_ALL_REFRESH);
 					set_menuline_update_status(menuline, U_ALL_REFRESH);
 				}
-				else if (!currentchannel->server->active){
+				else if (!currentserver->active){
 					print_all("Must be connected to a server to DCC chat.\n");
 					set_channel_update_status(currentchannel, U_ALL_REFRESH);
 					set_menuline_update_status(menuline, U_ALL_REFRESH);
@@ -916,9 +924,9 @@ int process_channel_events(int key){
 					new_dccchat = dcc_chat_by_name(selected_channel_nick(currentchannel)); 
 					if (new_dccchat == NULL){ 
 						new_dccchat = add_outgoing_dcc_chat(selected_channel_nick(currentchannel), 
-							currentchannel->server->nick, currentchannel->server);
+							currentserver->nick, currentserver);
 						start_outgoing_dcc_chat(new_dccchat);
-						sendcmd_server(currentchannel->server, "PRIVMSG",
+						sendcmd_server(currentserver, "PRIVMSG",
 						create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), 
 							selected_channel_nick(currentchannel), "");
 					}
@@ -934,10 +942,10 @@ int process_channel_events(int key){
 				set_channel_update_status(currentchannel, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 
-				if (strcmp(selected_channel_nick(currentchannel), currentchannel->server->nick) == 0){
+				if (strcmp(selected_channel_nick(currentchannel), currentserver->nick) == 0){
 					print_all("You can not DCC send to yourself.\n");
 				}
-				else if (!currentchannel->server->active){
+				else if (!currentserver->active){
 					print_all("Must be connected to a server to DCC send a file.\n");
 				}
 				else{
@@ -945,6 +953,91 @@ int process_channel_events(int key){
 					strcpy(newuser, selected_channel_nick(currentchannel));
 					strcpy(newfile, configuration.dcculpath);
 				}
+			}
+
+			/* Control Menu */
+			else if (selectedmenu == E_CONTROL_OP){
+				send_server(currentserver, "MODE %s +o %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			else if (selectedmenu == E_CONTROL_DEOP){
+				send_server(currentserver, "MODE %s -o %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			else if (selectedmenu == E_CONTROL_VOICE){
+				send_server(currentserver, "MODE %s +v %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			else if (selectedmenu == E_CONTROL_DEVOICE){
+				send_server(currentserver, "MODE %s -v %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			else if (selectedmenu == E_CONTROL_KICK){
+				send_server(currentserver, "KICK %s %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			else if (selectedmenu == E_CONTROL_BAN){
+				send_server(currentserver, "MODE %s +b %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			else if (selectedmenu == E_CONTROL_KICKBAN){
+				send_server(currentserver, "MODE %s +b %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				send_server(currentserver, "KICK %s %s", currentchannel->channel, selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+
+			/* List Menu */
+			if (selectedmenu == E_USER_ADD_FAVORITE){
+				if (!config_user_exists(&configuration, CONFIG_FAVORITE_USER_LIST, selected_channel_nick(currentchannel))){
+					add_config_user(&configuration, CONFIG_FAVORITE_USER_LIST, selected_channel_nick(currentchannel), LIST_ORDER_FRONT);
+					vprint_channel(currentchannel, "Nick %s has been added to favorites.\n", selected_channel_nick(currentchannel));
+				}
+				else vprint_channel(currentchannel, "Nick %s is already a favorite.\n", selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			else if (selectedmenu == E_USER_ADD_IGNORE){
+				if (!config_user_exists_exact(&configuration, CONFIG_IGNORED_USER_LIST, selected_channel_nick(currentchannel))){
+					add_config_user(&configuration, CONFIG_IGNORED_USER_LIST, selected_channel_nick(currentchannel), LIST_ORDER_FRONT);
+					vprint_channel(currentchannel, "Nick %s has been added to ignore list.\n", selected_channel_nick(currentchannel));
+				}
+				else vprint_channel(currentchannel, "Nick %s is already being ignored.\n", selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			if (selectedmenu == E_USER_REMOVE_FAVORITE){
+				if (remove_config_user_by_name(&configuration, CONFIG_FAVORITE_USER_LIST, selected_channel_nick(currentchannel))){
+					vprint_channel(currentchannel, "Nick %s has been removed from favorites.\n", selected_channel_nick(currentchannel));
+				}
+				else vprint_channel(currentchannel, "Nick %s is not a favorite.\n", selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
+			}
+			if (selectedmenu == E_USER_REMOVE_IGNORED){
+				if (remove_config_user_by_name(&configuration, CONFIG_IGNORED_USER_LIST, selected_channel_nick(currentchannel))){
+					vprint_channel(currentchannel, "Nick %s is no longer being ignored.\n", selected_channel_nick(currentchannel));
+				}
+				else vprint_channel(currentchannel, "Nick %s is not currently being ignored.\n", selected_channel_nick(currentchannel));
+				currentchannel->selecting = 0;
+				set_channel_update_status(currentchannel, U_ALL_REFRESH);
+				set_menuline_update_status(menuline, U_ALL_REFRESH);
 			}
 		}
 	}
@@ -1000,8 +1093,10 @@ int process_channel_events(int key){
 		if (ustarty > LINES - 4 - UserMenu->height) ustarty = LINES - 4 - UserMenu->height;
 		move_menu(UserMenu, ustartx, ustarty);
 
-		move_menu(CtcpMenu, ustartx - CtcpMenu->width - 1, ustarty + 2);
-		move_menu(DCCMenu, ustartx - DCCMenu->width - 1, ustarty + 3);
+		move_menu(ControlMenu, ustartx - ControlMenu->width - 1, ustarty + 2);
+		move_menu(CtcpMenu, ustartx - CtcpMenu->width - 1, ustarty + 3);
+		move_menu(DCCMenu, ustartx - DCCMenu->width - 1, ustarty + 4);
+		move_menu(UserListMenu, ustartx - UserListMenu->width - 1, ustarty + 5);
 
 		print_menu(UserMenu);
 	}
@@ -3437,6 +3532,14 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, message); 
 		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "%s\n", message); 
 	}
+
+	/* not an op */
+	else if (strcmp(command,"482")==0){
+		get_next_param(cmdparam, dest);
+		get_next_param(cmdparam, dest);
+		get_next_param(cmdparam, message); 
+		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Channel %s: %s\n", dest, message); 
+	}
 	
 	/* if this is an unknown numeric command, just print it to the screen */
 	else if (atoi(command)>0){
@@ -3714,11 +3817,14 @@ void send_current_server(char *message){
 	send_all(get_serverfd(currentscreen), scratch, strlen(scratch));
 }
 
-void send_server(server *S, char *message){
+void send_server(server *S, char *template, ...){
+	char message[MAXDATASIZE];
 	char scratch[MAXDATASIZE];
-	bzero(scratch, MAXDATASIZE);
+        va_list ap;
 
-	//if (message[strlen(message)-1]!='\n') strcat(message, "\n");
+        va_start(ap, template);
+        vsprintf(message, template, ap);
+        va_end(ap);
 	sprintf(scratch, "%s\n", message);
 	send_all(S->serverfd, scratch, strlen(scratch));
 }

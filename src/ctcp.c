@@ -53,6 +53,7 @@
 #include "dcc.h"
 #include "ctcp.h"
 #include "config.h"
+#include "main.h"
 
 static int ctcpreqcount = 0;
 static time_t ctcplastreq = 0;

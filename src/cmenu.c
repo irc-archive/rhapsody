@@ -48,8 +48,10 @@ extern menu *ChatMenu[4];
 extern menu *DCCChatMenu[4];
 extern menu *HelpMenu[2];
 extern menu *UserMenu;
+extern menu *UserListMenu;
 extern menu *CtcpMenu;
 extern menu *DCCMenu;
+extern menu *ControlMenu;
 
 void move_menu(menu *menuptr, int startx, int starty){
 	if (menuptr != NULL){
@@ -365,16 +367,33 @@ void init_all_menus(){
 	add_menu_item(DCCMenu, " Chat     ", "", 0, M_SELECTABLE, E_DCC_CHAT, NULL);
 	add_menu_item(DCCMenu, " Send ... ", "", 0, M_SELECTABLE, E_DCC_SEND, NULL);
 
+	ControlMenu = init_menu(1, 1 ,"Control", 0);
+	add_menu_item(ControlMenu, " Op (+o)       ", "", 0, M_SELECTABLE, E_CONTROL_OP, NULL);
+	add_menu_item(ControlMenu, " DeOP (-o)     ", "", 0, M_SELECTABLE, E_CONTROL_DEOP, NULL);
+	add_menu_item(ControlMenu, " Voice (+v)    ", "", 0, M_SELECTABLE, E_CONTROL_VOICE, NULL);
+	add_menu_item(ControlMenu, " DeVoice (-v)  ", "", 0, M_SELECTABLE, E_CONTROL_DEVOICE, NULL);
+	add_menu_item(ControlMenu, "               ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ControlMenu, " Kick          ", "", 0, M_SELECTABLE, E_CONTROL_KICK, NULL);
+	add_menu_item(ControlMenu, " Ban           ", "", 0, M_SELECTABLE, E_CONTROL_BAN, NULL);
+	add_menu_item(ControlMenu, " Kick and Ban  ", "", 0, M_SELECTABLE, E_CONTROL_KICKBAN, NULL);
+
+	UserListMenu = init_menu(1, 1 ,"User List", 0);
+	add_menu_item(UserListMenu, " Add to Favorites      ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
+	add_menu_item(UserListMenu, " Remove from Favorites ", "", 0, M_SELECTABLE, E_USER_REMOVE_FAVORITE, NULL);
+	add_menu_item(UserListMenu, " Ignore                ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
+	add_menu_item(UserListMenu, " Unignore              ", "", 0, M_SELECTABLE, E_USER_REMOVE_IGNORED, NULL);
+
 	UserMenu = init_menu(1, 1,"User", 0);
 	add_menu_item(UserMenu, " Copy and Paste    ", "", 0, M_SELECTABLE, E_USER_PASTE, NULL);
 	add_menu_item(UserMenu, "                   ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(UserMenu, " Control ...       ", "", 0, M_SELECTABLE, -1, ControlMenu);
 	add_menu_item(UserMenu, " Ctcp ...          ", "", 0, M_SELECTABLE, -1, CtcpMenu);
 	add_menu_item(UserMenu, " DCC ...           ", "", 0, M_SELECTABLE, -1, DCCMenu);
+	add_menu_item(UserMenu, " User List ...     ", "", 0, M_SELECTABLE, -1, UserListMenu);
 	add_menu_item(UserMenu, "                   ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(UserMenu, " Chat              ", "", 0, M_SELECTABLE, E_QUERY, NULL);
 	add_menu_item(UserMenu, " Whois             ", "", 0, M_SELECTABLE, E_WHOIS, NULL);
 
-	// add_menu_item(UserMenu, " Control ...       ", "", 0, M_SELECTABLE, -1, ControlMenu);
 	// add_menu_item(UserMenu, " Dcc ...           ", "", 0, M_SELECTABLE, -1, NULL);
 	// add_menu_item(UserMenu, " Info ...          ", "", 0, M_SELECTABLE, -1, InfoMenu);
 
@@ -504,6 +523,7 @@ void print_menu(menu *menu){
 	int ypos, i, mheight, mwidth, mstarty, mstartx, strabslen;
 	char text[256];
 
+	if (menu == NULL) return;
 	if (menu->starty >= LINES || menu->startx >= COLS){
 		print_all("Menu cannot be displayed properly, please resize the screen.\n");
 	}
@@ -539,7 +559,7 @@ void print_menu(menu *menu){
 		current = menu->item;	
 		curs_set(0);
 	
-		if (strlen(current->text) > mwidth - 2) strabslen = mwidth - 2;
+		if (current != NULL && strlen(current->text) > mwidth - 2) strabslen = mwidth - 2;
 		else strabslen = 255;
 
 		wattrset(menu->window, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));

@@ -33,7 +33,7 @@ void sendmsg_channel(channel *C, char *message);
 void sendmsg_chat(chat *C, char *message);
 void sendmsg_dcc_chat(dcc_chat *C, char *message);
 void send_current_server(char *message);
-void send_server(server *S, char *message);
+void send_server(server *S, char *template, ...);
 
 int get_serverfd(screen *screen);
 

@@ -265,7 +265,7 @@ int process_form_events(form *F, int event){
 	if (F == NULL){
 		return (event);   
 	}
-	if (event == E_NEXT ){
+	if (event == E_NEXT){
 		if (F->active == NULL) F->active = F->list;
 		else{ 
 			F->active = (F->active)->next;
@@ -794,7 +794,9 @@ int process_Flist_events(Flist *F, int event){
 	Flistline *current, *topentry;
         int topnum, found;
 
-	if (event == KEY_UP && F->selected != NULL){
+	if (event == KEY_ENTER || event == 10) return(event);
+
+	else if (event == KEY_UP && F->selected != NULL){
 	
 		if (F->top == F->selected) F->top = F->top->prev;
 		F->selected = F->selected->prev;

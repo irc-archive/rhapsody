@@ -444,6 +444,10 @@ int remove_config_user(config *C, int listnum, config_user *U){
 	return(0);
 }
 
+int remove_config_user_by_name(config *C, int listnum, char *name){
+	return(remove_config_user(C, listnum, config_user_exact(C, listnum, name)));
+}
+
 int config_user_exists(config *C, int listnum, char *name){
 	config_user *current;
 	
@@ -491,6 +495,21 @@ int string_match(char *str, char *exp){
 		return(string_match(&str[1], &exp[1]));
 	}
 	else return(0);
+}
+
+config_user *config_user_exact(config *C, int listnum, char *name){
+	config_user *current;
+	
+	if (listnum == CONFIG_FAVORITE_USER_LIST) current = C->userfavorite;
+	else current = C->userignored;
+
+	while(current != NULL){
+		if (strcmp(name, current->name) == 0){
+			return(current);
+		}
+		current = current->next;
+	}
+	return(NULL);
 }
 
 /** file ops *************************************************************************/

@@ -61,7 +61,9 @@ html: html.c
 	$(CC) $(FLAGS) $(INCPATHS) -o $@ $<
 
 autodefs.h:
+	@echo "*********************************************************"
 	@echo "*** Please run configure from the top most directory. ***"
+	@echo "*********************************************************"
 
 clean:
 	rm -f $(PROGRAMNAME) *.o plog.log core*

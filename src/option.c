@@ -1020,7 +1020,7 @@ int get_favorite_user_dccchat_info(int key, char *user){
 		}
 		else return(E_CANCEL);
 	}
-	//else if (event == KEY_ENTER || event == 10) process_form_events(form, E_NEXT);		
+	else if (event == KEY_ENTER || event == 10) process_form_events(mainform, E_NEXT);		
 	print_form(mainform);
 	return(key);
 }
@@ -1658,7 +1658,6 @@ int allow_transfer(int key, dcc_file *F){
 /** help about *******************************************************************************************/
 
 int view_about(int key){
-        //static form *form = NULL;
         void *comp;
 	Ftextarea *text;
         int revent;
@@ -1673,7 +1672,7 @@ int view_about(int key){
 	}
 
 	print_form(mainform);
-	if (key == 10){
+	if (key == 10 || key == KEY_ENTER){
 		mainform = remove_form(mainform);
 		return(E_OK);
 	}
@@ -1698,7 +1697,7 @@ int view_screen_size_warning(int key){
 
 	print_form(mainform);
 	mainform = remove_form(mainform);
-	if (key == 10) return(E_OK);
+	if (key == 10 || key == KEY_ENTER) return(E_OK);
 	else return(E_NONE);
 }
 

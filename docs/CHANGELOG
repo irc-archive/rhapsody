@@ -1,4 +1,11 @@
-Version 0.22a Alpha: Nov 23, 004
+Version 0.23b Beta: Dec 04, 2044
+First Public Beta
+
+- Added Control and List menu to channel screen user menu
+- Fixed broken Enter key in IRIX
+- Suppressed errors in configure script
+
+Version 0.22a Alpha: Nov 23, 2004
 Added support for Cygwin
 
 - Cleaned up the code and makefile for cygwin compatibility

@@ -5,7 +5,7 @@
 
 #define CODE_NAME "Rhapsody IRC"
 #define CODE_VERSION PROGRAM_VERSION
-#define CODE_STATE "Alpha"
+#define CODE_STATE "Beta"
 #define CODE_BUILD ""
 #define CODE_COPYRIGHT "2004"
 #define CODE_DEVELOPER "Adrian Gonera"
