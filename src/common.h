@@ -204,6 +204,7 @@ struct dcc_file_info{
 	char filename[MAXFILELEN];
 	unsigned long size;
 	unsigned long byte;
+	unsigned long ackbyte;
 	unsigned long hostip;
 	unsigned int port;
 	unsigned long localip;
@@ -226,6 +227,8 @@ struct transfer_info{
 	WINDOW *message;
 	char name[MAXDESCLEN];
 	dcc_file *dcclist;
+	dcc_file *dcclisttop;
+	dcc_file *selectedfile;
 	int update;
 };
 

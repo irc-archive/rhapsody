@@ -1,0 +1,11 @@
+Version 0.19a Alpha: Nov 5, 2004
+Minor Bug Fixes
+
+- Fixed scrolling in the transfer window
+- Added a SIGPIPE signal handler 
+- Fixed premature socket close and broken pipe errors on DCC sends
+- Fixed progress bar accuracy
+ 
+Version 0.18a Alpha: Nov 1, 2004
+Initial Alpha release
+

@@ -1271,7 +1271,7 @@ int edit_users(int key, int listnum){
 			textline = comp->component;
 			strcpy(userstr, Ftextline_buffer_contents(textline));
 
-			if (!config_user_exists(&configuration, listnum, userstr)) 
+			if (!config_user_exists_exact(&configuration, listnum, userstr)) 
 				add_config_user(&configuration, listnum, userstr);
 
 			/* destroy the main form so that it can be rebuilt and updated */

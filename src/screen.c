@@ -1286,7 +1286,8 @@ transfer *add_transfer(char *name){
 	if (new==NULL){
 		exit(1);
 	}
-	new->dcclist=NULL;
+	new->dcclist = NULL;
+	new->dcclisttop = NULL;
 	strcpy(new->name, name);
 	add_screen((void*)new, TRANSFER);
 	create_transfer_screen(new);

@@ -144,6 +144,7 @@ int inst_alarm_handler();
 int inst_resize_handler();
 int inst_abrt_handler();
 int inst_term_handler();
+int inst_pipe_handler();
 
 int draw_menuline_screen(menuwin *menuline, menubar *menubar);
 int process_common_form_events(screen *screen, int key);
@@ -157,7 +158,7 @@ static char newchannel[MAXDATASIZE];
 static char newuser[MAXDATASIZE];
 static char newfile[MAXDATASIZE];
 static dcc_file *newdccfile = NULL;
-static dcc_file *selectedfile = NULL;
+//static dcc_file *selectedfile = NULL;
 
 menu *build_window_menu(int startx, int starty);
 //form *currentform;
@@ -188,6 +189,7 @@ int main(int argc, char *argv[]){
 	inst_resize_handler();
 	inst_abrt_handler();
 	inst_term_handler();
+	inst_pipe_handler();
 
 	initscr();
 	begin_color();
@@ -469,18 +471,33 @@ int main(int argc, char *argv[]){
 		currentdcc=transferscreen->dcclist;
 		while(currentdcc != NULL){
 			nextdcc = currentdcc->next;
-			/* transfer finished, clean up */
-			if (currentdcc->byte >= currentdcc->size){
-				if (currentdcc->type == DCC_SEND){
-                			vprint_all("Filename %s was sent successfully\n", currentdcc->filename);
+
+
+			/* if this is a send in progress, check to see if ack is waiting */
+			if (currentdcc != NULL){
+				if (serr > 0 && FD_ISSET(currentdcc->dccfd, &readfds)) {
+					if (currentdcc->type == DCC_SEND && currentdcc->active){
+						get_dccack(currentdcc);
+					}
 				}
-				else if (currentdcc->type == DCC_RECEIVE){
-                			vprint_all("Filename %s was received successfully\n", currentdcc->filename);
-				}				
+			}
+
+
+			/* incoming transfer finished, clean up and close socket */
+			if (currentdcc->type == DCC_RECEIVE && currentdcc->byte >= currentdcc->size){
+                		vprint_all("Filename %s was received successfully\n", currentdcc->filename);
 				remove_dcc_file(currentdcc);
 				set_transfer_update_status(transferscreen, U_ALL_REFRESH);
 				currentdcc = NULL;
 			}
+			/* do not close the socket until the remote has acked all bytes  */
+			else if (currentdcc->type == DCC_SEND && currentdcc->ackbyte >= currentdcc->size){
+				vprint_all("Filename %s was sent successfully\n", currentdcc->filename);
+				remove_dcc_file(currentdcc);
+				set_transfer_update_status(transferscreen, U_ALL_REFRESH);
+				currentdcc = NULL;
+			}
+
 			/* timeout during transfer, clean up */
 			else if (currentdcc->active && (currentdcc->last_activity_at) + TRANSFERTIMEOUT < now ){
         	        	vprint_all ("Timeout receiving %s.\n", currentdcc->filename);
@@ -514,18 +531,13 @@ int main(int argc, char *argv[]){
 					}
 				}						
 				else{
-					start_incoming_dcc_file(currentdcc);
-				}
-			}
-
-			/* if this is a send in progress, check to see if ack is waiting */
-			if (currentdcc != NULL){
-				if (serr > 0 && FD_ISSET(currentdcc->dccfd, &readfds)) {
-					if (currentdcc->type == DCC_SEND && currentdcc->active){
-						get_dccack(currentdcc);
+					if (!start_incoming_dcc_file(currentdcc)){				
+						remove_dcc_file(currentdcc);
+						currentdcc = NULL;
 					}
 				}
 			}
+	
 			currentdcc=nextdcc;
 		}
 
@@ -1430,13 +1442,14 @@ int process_transfer_events(int key){
 	char scratch[1024], rscratch[1024];
 
 	struct in_addr hostipaddr;
-	int transfer_num;
-	long ratio;
+	int transfer_num, transfer_pos;
+	float ratio;
 	int percent;
 	int upnum, downnum;
 	int i, slen, dlen;
 	float kbps, upkbps, downkbps; 
 	float ttime, tbytes;
+	int displayed;
 
 	time_t now;
 	static time_t lastupdate = 0;
@@ -1450,8 +1463,11 @@ int process_transfer_events(int key){
 	TransferMenu[1] = windowmenu;
 
 	T = ((transfer *)(currentscreen->screen));
-	if (selectedfile == NULL || !dcc_file_exists(T, selectedfile)){
-		selectedfile = T->dcclist;
+	if (T->selectedfile == NULL || !dcc_file_exists(T, T->selectedfile)){
+		T->selectedfile = T->dcclist;
+	}
+	if (T->dcclisttop == NULL || !dcc_file_exists(T, T->dcclisttop)){
+		T->dcclisttop = T->dcclist;
 	}
 
 	//if forms are showing, pass the key event to forms
@@ -1479,7 +1495,7 @@ int process_transfer_events(int key){
 	else if (key==KEY_PPAGE || key==KEY_A3){} 
 	else if (key==KEY_NPAGE || key==KEY_C3){}
 			
-	// not sure what to do with this yet				
+	/* bring up the abort / info form */				
 	else if (key==KEY_ENTER||key==10){
 		currentform = CF_FILE_TRANSFER;
 		set_statusline_update_status(statusline, U_ALL_REFRESH); 
@@ -1487,15 +1503,49 @@ int process_transfer_events(int key){
 	}
 
 	else if (key == KEY_DOWN && T->dcclist != NULL){
-		if (selectedfile != NULL){
-			if (selectedfile->next != NULL) selectedfile = selectedfile->next;
-			set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+		if (T->selectedfile != NULL){
+			if (T->selectedfile->next != NULL){
+				set_screen_update_status(currentscreen, U_ALL_REFRESH);
+				T->selectedfile = T->selectedfile->next;
+
+				/* adjust the top so that it's visible on the screen */
+				transfer_num = 0;
+				current = T->dcclisttop;
+				while(current != NULL){
+					transfer_num++;
+					if (T->selectedfile == current){
+						transfer_num -= ((LINES - 2) / 3);
+						for (i = 0; i < transfer_num; i++){
+							if (T->dcclisttop->next != NULL) T->dcclisttop = T->dcclisttop->next; 
+						}
+						break;
+					}
+					current = current->next;
+				}
+				if (current == NULL) T->dcclisttop = T->dcclist;			 
+			}
 		}	
 	} 
 	else if (key == KEY_UP && T->dcclist != NULL){
-		if (selectedfile != NULL){
-			if (selectedfile->prev != NULL) selectedfile = selectedfile->prev;
-			set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+		if (T->selectedfile != NULL){
+			if (T->selectedfile->prev != NULL){
+				set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+				T->selectedfile = T->selectedfile->prev;
+
+				/* adjust the top so that it's visible on the screen */
+				transfer_num = 0;
+				current = T->dcclisttop;
+				while(current != NULL){
+					if (current == T->selectedfile){
+						for (i = 0; i < transfer_num; i++){
+							if (T->dcclisttop->prev != NULL) T->dcclisttop = T->dcclisttop->prev; 
+						}
+						break;
+					}
+					transfer_num++;
+					current = current->prev;
+				}
+			}
 		}
 	}
 
@@ -1507,6 +1557,7 @@ int process_transfer_events(int key){
 	upnum = 0;
 	downnum = 0;
 	transfer_num = 0;
+	transfer_pos = 0;
 
 	if (transfer_update_status(T) & U_ALL_REFRESH){	
 		werase(T->message);
@@ -1514,10 +1565,11 @@ int process_transfer_events(int key){
 
 	if (currentmenusline->current < 0){
 		if (now > lastupdate ||	transfer_update_status(T)){	
+			displayed = 0;
 			lastupdate = now;
 			current = T->dcclist;
 			while(current != NULL){
-				transfer_num = transfer_num + 1;
+				transfer_num++;
 				next=current->next;
 				// touchline(T->message, transfer_num * 2, 2);	
 	
@@ -1526,38 +1578,39 @@ int process_transfer_events(int key){
 				if (ttime > 0) kbps = tbytes/(ttime*1000);
 				else kbps = 0;
 
-				if (current == selectedfile) wattrset(T->message, A_REVERSE);
-				else wattrset(T->message, A_NORMAL);
+				/* start displaying only after the top of the screen */
+				if (current == T->dcclisttop) displayed = 1;
 
-				// if (current->last_updated_at < current->last_activity_at){
-				//hostipaddr.s_addr=htonl(current->hostip);
+				if (displayed){
+					transfer_pos++;
+					if (current == T->selectedfile) wattrset(T->message, A_REVERSE);
+					else wattrset(T->message, A_NORMAL);
 
-				scratch[0] = 0;
-				if (current->type == DCC_RECEIVE) sprintf(scratch, "RECEIVING: %s", current->filename);
-				else if (current->type == DCC_SEND) sprintf(scratch, "SENDING: %s", current->filename);
-				sprintf(rscratch, "%ld/%ld, %.1f KB/s\n", current->byte, current->size, kbps); 
 
-				slen = strlen(scratch);
-				dlen = strlen(rscratch);
+					scratch[0] = 0;
+					if (current->type == DCC_RECEIVE) sprintf(scratch, "RECEIVING: %s", current->filename);
+					else if (current->type == DCC_SEND) sprintf(scratch, "SENDING: %s", current->filename);
+					sprintf(rscratch, "%ld/%ld, %.1f KB/s\n", current->byte, current->size, kbps); 
 
-				/* pad the line with spaces */
-				for (i = slen; i < COLS - dlen - 1; i++){
-					 scratch[i] = ' ';
-				}
-				scratch[i] = 0;
-				strcat(scratch, rscratch);
+					slen = strlen(scratch);
+					dlen = strlen(rscratch);
 
-				//inet_ntoa(hostipaddr),current->port);
+					/* pad the line with spaces */
+					for (i = slen; i < COLS - dlen - 1; i++){
+						 scratch[i] = ' ';
+					}
+					scratch[i] = 0;
+					strcat(scratch, rscratch);
 
-				mvwaddstr(T->message, transfer_num * 3 - 2, 1, scratch);
-				ratio = current->byte * 100;
-				percent = ratio / current->size;
+					mvwaddstr(T->message, transfer_pos * 3 - 2, 1, scratch);
+					ratio = (float)current->byte * 100.0f;
+					percent = (int)(ratio / (float)current->size);
 
-				progress_bar(T->message, transfer_num * 3 - 1, 1, COLS-2, percent);
-				current->last_updated_at = now;
-				set_statusline_update_status(statusline, U_ALL_REFRESH); 
-				set_screen_update_status(currentscreen, U_ALL_REFRESH); 
-				//}	
+					progress_bar(T->message, transfer_pos * 3 - 1, 1, COLS-2, percent);
+					current->last_updated_at = now;
+					set_statusline_update_status(statusline, U_ALL_REFRESH); 
+					set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+				}	
 
 				if (current->type == DCC_RECEIVE){
 					downnum++;
@@ -1574,7 +1627,7 @@ int process_transfer_events(int key){
 	
 	// update the statusline for this screen if required
 
-	if (statusline_update_status(statusline) & U_ALL_REFRESH){
+	if (statusline_update_status(statusline) & U_ALL_REFRESH || transfer_update_status(T) & U_ALL_REFRESH){
 		sprintf(wininfo, "UP %d FILES @ %.1fKB/s : DOWN %d FILES @ %.1fKB/s", 
 			upnum, upkbps, downnum, downkbps);
 		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
@@ -1594,15 +1647,15 @@ int process_transfer_events(int key){
 	draw_menuline_screen(menuline, menus);
 
 	if (key == E_TRANSFER_STOP){
-		if (dcc_file_exists(T, selectedfile)){
-			remove_dcc_file(selectedfile);
+		if (dcc_file_exists(T, T->selectedfile)){
+			remove_dcc_file(T->selectedfile);
 		}
 		set_statusline_update_status(statusline, U_ALL_REFRESH); 
 		set_screen_update_status(currentscreen, U_ALL_REFRESH); 
 		return(E_NOWAIT);
 	}
 	else if (key == E_TRANSFER_INFO){
-		if (dcc_file_exists(T, selectedfile)){
+		if (dcc_file_exists(T, T->selectedfile)){
 			currentform = CF_FILE_TRANSFER_INFO;
 		}
 		set_statusline_update_status(statusline, U_ALL_REFRESH); 
@@ -2217,15 +2270,15 @@ int process_common_form_events(screen *inscreen, int key){
 			key = E_NOWAIT;
 		}
 		else if (formcode == E_TRANSFER_STOP){
-			if (dcc_file_exists(inscreen->screen, selectedfile)){
-				remove_dcc_file(selectedfile);
+			if (dcc_file_exists(inscreen->screen, transferscreen->selectedfile)){
+				remove_dcc_file(transferscreen->selectedfile);
 			}
 			update = U_ALL_REFRESH;
 			currentform = 0;
 			key = E_NOWAIT;
 		}
 		else if (formcode == E_TRANSFER_INFO){
-			if (dcc_file_exists(inscreen->screen, selectedfile)){
+			if (dcc_file_exists(inscreen->screen, transferscreen->selectedfile)){
 				currentform = CF_FILE_TRANSFER_INFO;
 			}
 			else currentform = 0;
@@ -2234,7 +2287,7 @@ int process_common_form_events(screen *inscreen, int key){
 		}
 	}
 	else if (currentform == CF_FILE_TRANSFER_INFO){
-		formcode = get_transfer_info(formkey, selectedfile);
+		formcode = get_transfer_info(formkey, transferscreen->selectedfile);
 		if (formcode == E_CANCEL || formcode == E_OK){
 			update = U_ALL_REFRESH;
 			currentform = 0;
@@ -3400,6 +3453,12 @@ int abrt_handler(void){
 	printf("SIGABRT caught. Exiting...\n");
 	exit(0);
 }
+
+int pipe_handler(void){
+	/* don't do anything at this point */
+	return(0);
+}
+
  
 int inst_ctrlc_handler(){
 	int err;
@@ -3450,9 +3509,19 @@ int inst_resize_handler(){
 	struct sigaction act;
  
 	bzero(&act, sizeof(struct sigaction));
-	//act.sa_flags = SA_RESETHAND;
 	act.sa_handler = (void *)resize_handler;
 	err=sigaction(SIGWINCH, &act, NULL);
+ 
+	return(err);
+}
+
+int inst_pipe_handler(){
+	int err;
+	struct sigaction act;
+ 
+	bzero(&act, sizeof(struct sigaction));
+	act.sa_handler = (void *)pipe_handler;
+	err=sigaction(SIGPIPE, &act, NULL);
  
 	return(err);
 }

@@ -15,7 +15,7 @@ void remove_dcc_chat(dcc_chat *D);
 
 int put_dcc_file(dcc_file *D);
 
-void gen_dccack(unsigned long byte, char *ack);
+void gen_dccack(unsigned long byte, unsigned char *ack);
 int get_dccack(dcc_file *D);
 
 

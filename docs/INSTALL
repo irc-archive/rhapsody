@@ -1,0 +1,121 @@
+Installation
+
+Installation is simple. Extract the contents of the tar archive, go into the extracted directory, run ./configure, then run make to compile the program. Finally 
+you can run make install to install the program and the included help files. The installation part is optional. Rhapsody can be run from the directory where it 
+is compiled.
+
+The following commands will untar, configure, compile and install rhapsody. Below, the x and yy represent the version number so substitute these when typing the 
+commands.
+
+tar zxvf rhapsody_x.yy.tgz
+
+or if your tar does not support the z flag you can use:
+
+gunzip rhapsody_x.yy.tgz
+tar xvf rhapsody_x.yy.tar
+
+Now, in the current path, you should see a newly created directory. Change to the directory and compile the source code.
+
+cd rhapsody-x.yy
+./configure
+make clean
+make
+make install (optional)
+
+Running configure as root sets the default installation path to /usr/local/bin. Otherwise the install path will be in your home directory. Keep an eye on the 
+output of configure to see where the files will actually be installed. If you are unhappy with the installation path, you can always overwrite it by running 
+configure with the -i option.
+
+That's it! Enjoy!
+
+Requirements
+
+Unix OS
+
+Any unix operating system should do. Running configure will set up the compilation defaults for your OS. So far this has been tested and should work on:
+
+* Linux (various flavors)
+* FreeBSD
+* OpenBSD
+* NetBSD
+* Mac OS X (Darwin)
+* Solaris
+* IRIX
+
+If the compilation fails on your OS for whatever reason, it's likely that your system doesn't have one or more of the required components, rhapsody has not yet 
+been tested in your environment, or that you have some non-standard setup that prevents configure from finding the compilers or some of the libraries. Here's 
+what is required:
+
+C Compiler
+
+You'll need either gcc, which is preferred, or cc, the standard compiler that comes with OSes like Solaris and IRIX.
+
+Ncurses Library and Header Files
+
+The program requires the ncurses library version 5.0 or later. You WILL run into problems with earlier versions of ncurses. Ncurses can be found at 
+http://www.gnu.org/software/ncurses/
+
+Socket and NSL Libraries
+
+Depending on the OS, this may or may not be required for compilation. Linux, BSD, IRIX do not require these libraries, Solaris on the other hand does.
+
+
+Compilation and Installation Problems
+
+1. Error: screen.c: ncurses.h: No such file or directory
+
+This occurs when the compiler isn’t able to find the ncurses.h header file and the configure script wasn't able to provide its location. If you encounter the 
+above error during compilation make sure that you have the ncurses library version 5.0 or newer installed. Ncurses can be found at 
+http://www.gnu.org/software/ncurses/. If ncurses is installed on your computer, and you know where the ncurses.h header file is located, run configure once 
+again with the -h option and supply the location of the file. For example, if the file is ncurses.h is located in /usr/lib/include, run configure with the 
+following parameters:
+
+./configure -h /usr/lib/include
+
+Now run make clean and then make. The program should now compile.
+
+If you do not know where the file is, a search using find should be able to locate it. Simply run the following command:
+
+find / -name ncurses.h
+
+This will return a list of all files with the filename ncurses. Pick one of the returned files and pass its path, excluding the filename, to the configure 
+script as shown above. Run make clean and make. If multiple files are returned in the search and you are getting an excessive number of warnings during 
+compilation, try picking another file from the list. 
+
+
+2. Error: ld: cannot find -lncurses
+
+This error occurs if the linker cannot find the ncurses library file, libncurses.*. This problem can easily be corrected by specifying the path of the library 
+with the -l option in configure. For instance, if the library file is located in /usr/lib, run configure with the following parameters:
+
+./configure -l /usr/lib
+
+You can find the missing library file with the following search command:
+
+find / -name libncurses.\*
+
+Make sure that you only include the path and exclude the filenames of the found files when passing the information to configure. If multiple libraries from 
+different directories were returned in the above search, and the program doesn't link, try picking another path from the returned list.
+
+
+
+Runtime Problems
+
+1. Error: ld.so.1: ./rhapsody: fatal: libncurses.so.5: open failed: No such file or directory
+
+This error occurs when the runtime linker isn't able to locate the ncurses library, in this case libncurses.so.5. To correct the problem, you need to pass the 
+path of the missing file to the runtime linker via the LD_LIBRARY_PATH environment variable. Do this as follows:
+
+In sh, ksh and bash type:
+
+export LD_LIBRARY_PATH=<library-path>
+
+In csh and tcsh type:
+
+setenv LD_LIBRARY_PATH <library-path>
+
+Use the following find command if the location of the library is unknown:
+
+find / -name libncurses.so\*
+
+Take the returned path and set the LD_LIBRARY_PATH variable as shown above.

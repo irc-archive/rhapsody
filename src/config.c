@@ -406,7 +406,22 @@ int config_user_exists(config *C, int listnum, char *name){
 	else current = C->userignored;
 
 	while(current != NULL){
-		if (string_match(current->name, name) == 0){
+		if (string_match(current->name, name)){
+			return(1);
+		}
+		current = current->next;
+	}
+	return(0);
+}
+
+int config_user_exists_exact(config *C, int listnum, char *name){
+	config_user *current;
+	
+	if (listnum == CONFIG_FAVORITE_USER_LIST) current = C->userfavorite;
+	else current = C->userignored;
+
+	while(current != NULL){
+		if (strcmp(current->name, name) == 0){
 			return(1);
 		}
 		current = current->next;

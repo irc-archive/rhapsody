@@ -57,13 +57,13 @@ int start_incoming_dcc_chat(dcc_chat *D){
 	struct in_addr hostaddr;
 	int alarm_occured;
 
-	if (D == NULL) return (FALSE);
+	if (D == NULL) return (0);
 
 	D->active=0;
 	D->dccfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (D->dccfd == -1) {
 		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC Chat: Cannot create a socket\n");
-		return(FALSE);
+		return(0);
 	}
 
 	hostiph = ntohl(D->hostip); 
@@ -79,12 +79,12 @@ int start_incoming_dcc_chat(dcc_chat *D){
 		alarm_occured=0;	
 		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC Error while connecting to %s: %s\n", 
 			inet_ntoa(hostaddr), strerror(errno));
-		return(FALSE);
+		return(0);
         }
 	fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 	D->active=1;
 	D->serverstatus=1;
-	return(TRUE);
+	return(1);
 }
 
 
@@ -106,6 +106,7 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 	/* if not yet done, configure and bind the socket to listen */
 	if (D->serverstatus == 0){
 		D->dccfd = socket(AF_INET, SOCK_STREAM, 0);
+		fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 		if (D->dccfd == -1) {
 			vprint_dcc_chat(D, "Error (%d %s) opening DCC chat server socket.\nDCC chat functionality will not be available.\n", 
 				errno, strerror(errno));
@@ -139,7 +140,7 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 			return(-1);
 		}
 
-		serr = fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
+		//serr = fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 	        listen(D->dccfd, 1);
 
 		D->serverstatus = 1;
@@ -230,6 +231,8 @@ dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, 
                 new->prev = NULL;
                 transfer->dcclist = new;
 	}
+	transfer->dcclisttop = new;
+	transfer->selectedfile = new;
         strcpy(new->filename, filenamex);
         strcpy(new->nick, nick);
         new->hostip = hostip;
@@ -273,6 +276,8 @@ dcc_file *add_outgoing_dcc_file(transfer *transfer, char *nick, char *filename){
                 new->prev = NULL;
                 transfer->dcclist = new;
 	}
+	transfer->dcclisttop = new;
+	transfer->selectedfile = new;
         strcpy(new->filename, filename);
         strcpy(new->nick, nick);
         new->type = DCC_SEND; 
@@ -300,13 +305,13 @@ int start_incoming_dcc_file(dcc_file *D){
 	struct in_addr hostaddr;
 	int alarm_occured;
 			
-	if (D == NULL) return (FALSE);
+	if (D == NULL) return (0);
 
 	D->dccfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (D->dccfd == -1) {
 		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC File: Cannot create a socket for %s\n", D->filename);
 		remove_dcc_file(D);		
-		return(FALSE);
+		return(0);
 	}
 
 	hostiph = ntohl(D->hostip); 
@@ -327,14 +332,14 @@ int start_incoming_dcc_file(dcc_file *D){
 			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC Error while connecting to %s: %s\n", 
 				inet_ntoa(hostaddr), strerror(errno));
 		}
-		return(FALSE);
+		return(0);
         }
 	fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 	time(&(D->starttime));
 	time(&(D->last_activity_at));
 	time(&(D->last_updated_at));
 	D->active=1;
-	return(TRUE);
+	return(1);
 }
 
 /* start outgoing file transfer, create a local server */
@@ -351,7 +356,7 @@ int start_outgoing_dcc_file(dcc_file *D){
 	portstartrange = configuration.dccstartport;
 	portendrange = configuration.dccendport;
 			
-	if (D == NULL) return (FALSE);
+	if (D == NULL) return (0);
 
 	/* if not yet done, configure and bind the socket to listen */
 	if (D->serverstatus == 0){
@@ -360,7 +365,7 @@ int start_outgoing_dcc_file(dcc_file *D){
 			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error (%d %s) opening DCC send server socket for filename %s.\n", 
 				errno, strerror(errno), D->filename);
 			D->serverstatus = -1;
-			return(FALSE);
+			return(0);
         	}
 
 		/* find the next available free port */
@@ -426,7 +431,7 @@ int start_outgoing_dcc_file(dcc_file *D){
 			time(&(D->starttime));
 			time(&(D->last_activity_at));
 			time(&(D->last_updated_at));
-			return(TRUE);
+			return(1);
 		}		
 	}
 	return(0);
@@ -452,16 +457,28 @@ int get_dcc_file(dcc_file *D){
 			}			
 			time(&(D->last_activity_at));
 			gen_dccack(D->byte, ack);
-			send_ball(D->dccfd, ack, 4);
+			send(D->dccfd, ack, 4, 0);
+			//send_ball(D->dccfd, ack, 4);
+			
 		}
 		else if (len == 0){
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s while receiving %s. Closing connection...\n", 
+			if (D->byte == D->size){
+				gen_dccack(D->byte, ack);
+				send(D->dccfd, ack, 4, 0);
+				//send_ball(D->dccfd, ack, 4);
+			}
+			else{
+				vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s while receiving %s. Closing connection...\n", 
 				errno, strerror(errno), D->filename);
-			remove_dcc_file(D);		
-			return(-1);
+				remove_dcc_file(D);		
+				return(-1);
+			}
 		}
 		else if (len == -1){
 			//fprintf(stderr, "DCC read would block\r\n");
+			gen_dccack(D->byte, ack);
+			send(D->dccfd, ack, 4, 0);
+			//send_ball(D->dccfd, ack, 4);
 			return(0);			
 		}
 	}		
@@ -478,56 +495,62 @@ int put_dcc_file(dcc_file *D){
 	len=0;
 
 	if (D->type==DCC_SEND){
-		fread(buffer, MAXDCCPACKET, 1, D->dccfp);				
-		if (ferror(D->dccfp)){
+		numbytes = fread(buffer, 1, MAXDCCPACKET, D->dccfp);				
+		if (feof(D->dccfp)){
+			// return(0);
+		}
+		else if (ferror(D->dccfp)){
 			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s reading file %s. Closing connection...\n", 
 				 errno, strerror(errno), D->filename);
 			remove_dcc_file(D);		
 			return(-1);
 		}			
+	
+		if (numbytes > 0){
+			len = send(D->dccfd, buffer, numbytes, 0);
+			// vprint_all("Sent %d bytes %s\n", len, D->filename);
+		
+			/* if the entire packet was written, nothing else needs to be done for now */
+			if (len == numbytes) D->byte += len;
 
-		len = send(D->dccfd, buffer, MAXDCCPACKET, 0);
-		// vprint_all("Sent %d bytes %s\n", len, D->filename);
-
-		/* if the entire packet was written, nothing else needs to be done for now */
-		if (len == MAXDCCPACKET) D->byte += len;
-
-		/* nothing was sent */
-		else if (len==-1){
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC error sending %s: %d %s\n", D->filename, errno, strerror(errno));
-			return(0);			
+			/* nothing was sent */
+			else if (len == -1){
+				vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC error sending %s: %d %s\n", D->filename, errno, strerror(errno));
+				remove_dcc_file(D);		
+				return(-1);			
+			}
+			/* if the packet wasn't completed, rewind to the last sent byte */
+			else{
+				D->byte += len;
+				fseek(D->dccfp, D->byte, SEEK_SET);
+			}
+			time(&(D->last_activity_at));
 		}
-		/* if the packet wasn't completed, rewind to the last sent byte */
-		else{
-			D->byte += len;
-			fseek(D->dccfp, D->byte, SEEK_SET);
-		}
-		time(&(D->last_activity_at));
 	}
 
-	if (D->byte >= D->size) D->active=0;
+	//if (D->byte >= D->size) D->active=0;
 	return(len);
 }
 
-void gen_dccack(unsigned long byte, char *ack){
+void gen_dccack(unsigned long byte, unsigned char *ack){
 	bzero(ack, 5);
 	ack[3]=byte&0xff;	
 	ack[2]=(byte&0xff00)>>8;
 	ack[1]=(byte&0xff0000)>>16;
 	ack[0]=(byte&0xff000000)>>24;
-	//fprintf(stderr, "%d, %d, %d, %d \r\n", ack[3], ack[2], ack[1], ack[0]);
+	//vprint_all("Sending DCC ack %d, %d, %d, %d: value %lu\n", ack[3], ack[2], ack[1], ack[0], byte);
 }
 
 int get_dccack(dcc_file *D){
 	unsigned char ackbuffer[5];
 	int len;
-	long ack;
+	unsigned long ack;
 
 	// vprint_all("looking for ack\n", ack);
 
 	if (D->type==DCC_SEND){
 		/* get the 4 ack bytes */
-		len = recv(D->dccfd, ackbuffer, 4, 0);
+		len = recv(D->dccfd, ackbuffer, 4, MSG_DONTWAIT);
 		if (len == 4){
 
 			ack = ackbuffer[3];
@@ -535,18 +558,18 @@ int get_dccack(dcc_file *D){
 			ack |= ackbuffer[1] << 16;
 			ack |= ackbuffer[0] << 24;
 			
-			// vprint_all("DCC ack received, value %lu\n", ack);
+			D->ackbyte = ack;
+			//vprint_all("Received DCC ack %d, %d, %d, %d: value %lu\n", ackbuffer[3], ackbuffer[2], ackbuffer[1], ackbuffer[0], ack);			
 			return(1);
 
 		}
 		else if (len > 0){
-			vprint_all("Received %d byte DCC ack for %s. Closing connection...\n", 
-				errno, strerror(errno), D->filename);
+			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Received %d byte DCC ack for %s. Closing connection...\n", len, D->filename);
 			remove_dcc_file(D);		
 			return(-1);
 		}			
 		else{
-			vprint_all("Error %d, %s receiving DCC ack for %s. Closing connection...\n", 
+			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s receiving DCC ack for %s. Closing connection...\n", 
 			errno, strerror(errno), D->filename);
 			remove_dcc_file(D);		
 			return(-1);
@@ -589,6 +612,9 @@ void remove_dcc_file(dcc_file *D){
 		((dcc_file *)D->prev)->next = D->next;
 		((dcc_file *)D->next)->prev = D->prev;
 	}
+	(D->transfer)->dcclisttop = (D->transfer)->dcclist;
+	(D->transfer)->selectedfile = (D->transfer)->dcclist;
+
 	free(D);
 }
 
