@@ -681,7 +681,7 @@ int process_server_events(int key){
 	else if (key == E_SERVER_ADD_FAVORITE){
 		if (currentserver->active){
 			if (!config_server_exists(&configuration, currentserver->server, currentserver->port)){
-				add_config_server(&configuration, currentserver->server, currentserver->port);
+				add_config_server(&configuration, currentserver->server, currentserver->port, LIST_ORDER_FRONT);
 				sprintf(buffer, "Server %s:%d added to favorites\n", currentserver->server, 
 					currentserver->port);
 				print_server(currentserver, buffer);
@@ -763,6 +763,16 @@ int process_channel_events(int key){
 
 	else if (key == KEY_DOWN && currentchannel->selecting == 1){
 		select_next_user(currentchannel);
+		set_channel_update_status(currentchannel, U_USER_REFRESH);
+	}
+
+	else if ((key == KEY_PPAGE || key == KEY_A3 || key == 25) && currentchannel->selecting == 1){
+		for (i = 0; i < LINES - 4; i++) select_prev_user(currentchannel);
+		set_channel_update_status(currentchannel, U_USER_REFRESH);
+	}
+
+	else if ((key == KEY_NPAGE || key == KEY_C3 || key == 22) && currentchannel->selecting == 1){
+		for (i = 0; i < LINES - 4; i++) select_next_user(currentchannel);
 		set_channel_update_status(currentchannel, U_USER_REFRESH);
 	}
 
@@ -997,7 +1007,7 @@ int process_channel_events(int key){
 	if (key == E_CHANNEL_ADD_FAVORITE){
 		if (currentchannel->active){
 			if (!config_channel_exists(&configuration, currentchannel->channel)){
-				add_config_channel(&configuration, currentchannel->channel);
+				add_config_channel(&configuration, currentchannel->channel, LIST_ORDER_FRONT);
 				vprint_channel(currentchannel, "Channel %s added to favorites\n", currentchannel->channel);
 				key = E_NOWAIT;				
 			}
@@ -1110,7 +1120,7 @@ int process_chat_events(int key){
 		 
 	if (key == E_USER_ADD_FAVORITE){
 		if (!config_user_exists(&configuration, CONFIG_FAVORITE_USER_LIST, currentchat->nick)){
-			add_config_user(&configuration, CONFIG_FAVORITE_USER_LIST, currentchat->nick);
+			add_config_user(&configuration, CONFIG_FAVORITE_USER_LIST, currentchat->nick, LIST_ORDER_FRONT);
 			vprint_chat(currentchat, "Nick %s has been added to favorites.\n", currentchat->nick);
 		}
 		else vprint_chat(currentchat, "Nick %s is already a favorite.\n", currentchat->nick);
@@ -1118,7 +1128,7 @@ int process_chat_events(int key){
 	}
 	else if (key == E_USER_ADD_IGNORE){
 		if (!config_user_exists(&configuration, CONFIG_IGNORED_USER_LIST, currentchat->nick)){
-			add_config_user(&configuration, CONFIG_IGNORED_USER_LIST, currentchat->nick);
+			add_config_user(&configuration, CONFIG_IGNORED_USER_LIST, currentchat->nick, LIST_ORDER_FRONT);
 			vprint_chat(currentchat, "Nick %s has been added to ignore list.\n", currentchat->nick);
 		}
 		else vprint_chat(currentchat, "Nick %s is already being ignored.\n", currentchat->nick);
@@ -1236,7 +1246,7 @@ int process_dccchat_events(int key){
 	}
 	else if (key == E_USER_ADD_FAVORITE){
 		if (!config_user_exists(&configuration, CONFIG_FAVORITE_USER_LIST, currentchat->nick)){
-			add_config_user(&configuration, CONFIG_FAVORITE_USER_LIST, currentchat->nick);
+			add_config_user(&configuration, CONFIG_FAVORITE_USER_LIST, currentchat->nick, LIST_ORDER_FRONT);
 			vprint_dcc_chat(currentchat, "Nick %s has been added to favorites.\n", currentchat->nick);
 		}
 		else vprint_dcc_chat(currentchat, "Nick %s is already a favorite.\n", currentchat->nick);
@@ -1244,7 +1254,7 @@ int process_dccchat_events(int key){
 	}
 	else if (key == E_USER_ADD_IGNORE){
 		if (!config_user_exists(&configuration, CONFIG_IGNORED_USER_LIST, currentchat->nick)){
-			add_config_user(&configuration, CONFIG_IGNORED_USER_LIST, currentchat->nick);
+			add_config_user(&configuration, CONFIG_IGNORED_USER_LIST, currentchat->nick, LIST_ORDER_FRONT);
 			vprint_dcc_chat(currentchat, "Nick %s has been added to ignore list.\n", currentchat->nick);
 		}
 		else vprint_dcc_chat(currentchat, "Nick %s is already being ignored.\n", currentchat->nick);
@@ -1300,8 +1310,8 @@ int process_list_events(int key){
 
 	if (key == KEY_UP) select_prev_list_channel(currentlist);
 	else if (key == KEY_DOWN) select_next_list_channel(currentlist);
-	else if (key == KEY_PPAGE || key == KEY_A3 || key == 22) select_prev_list_channel_page(currentlist);
-	else if (key == KEY_NPAGE || key == KEY_C3 || key == 25) select_next_list_channel_page(currentlist);
+	else if (key == KEY_PPAGE || key == KEY_A3 || key == 25) select_prev_list_channel_page(currentlist);
+	else if (key == KEY_NPAGE || key == KEY_C3 || key == 22) select_next_list_channel_page(currentlist);
 
 	else if (key == E_LIST_VIEW && currentform == 0){
 		currentform = CF_LIST_OPTIONS;
@@ -1311,7 +1321,7 @@ int process_list_events(int key){
 
 	else if (key == E_CHANNEL_ADD_FAVORITE && selected_list_channel(currentlist) != NULL){
 		if (!config_channel_exists(&configuration, selected_list_channel(currentlist))){
-			add_config_channel(&configuration, selected_list_channel(currentlist));
+			add_config_channel(&configuration, selected_list_channel(currentlist), LIST_ORDER_FRONT);
 			vprint_all("Channel %s added to favorites\n", selected_list_channel(currentlist));
 		}
 		else {
@@ -1404,7 +1414,7 @@ int process_list_events(int key){
 		else if (formcode == E_CHANNEL_ADD_FAVORITE){
 			if (selected_list_channel(currentlist) != NULL){
 				if (!config_channel_exists(&configuration, selected_list_channel(currentlist))){
-					add_config_channel(&configuration, selected_list_channel(currentlist));
+					add_config_channel(&configuration, selected_list_channel(currentlist), LIST_ORDER_FRONT);
                         	}
 			}
 			set_list_update_status(currentlist, U_ALL_REFRESH);
@@ -2719,6 +2729,7 @@ void parse_message(server *currentserver, char *buffer){
 
 	char touser[555];
 	char userstatus;
+	int op, voice;
 	screen *current;
 	
 	command_parse(buffer, command, cmdparam, cmdnick, cmduser, cmdhost);
@@ -2802,7 +2813,7 @@ void parse_message(server *currentserver, char *buffer){
 		else {
 			C = channel_by_name(dest);
 			if (C != NULL) {
-				add_user(C, cmdnick);
+				add_user(C, cmdnick, 0, 0);
 				set_channel_update_status(C, U_USER_REFRESH);
 			}
 		}
@@ -2873,16 +2884,13 @@ void parse_message(server *currentserver, char *buffer){
 		current=screenlist; 
 		while(current!=NULL){
 			if (current->type==CHANNEL){
-				userstatus = get_user_status(current->screen, cmdnick);
+				userstatus = get_user_status(current->screen, cmdnick, &op, &voice);
 
 				if (remove_user (current->screen, cmdnick)){
 					print_channel(current->screen, touser);
 
 					/* preserve user status (op, voice) */
-					scratch[0] = userstatus;
-					scratch[1] = 0;
-					strcat(scratch, dest); 
-					add_user(current->screen, scratch);		
+					add_user(current->screen, dest, op, voice);		
 					set_channel_update_status(current->screen, U_ALL_REFRESH);
 				}
 			}
@@ -2914,7 +2922,10 @@ void parse_message(server *currentserver, char *buffer){
 		
 		C = channel_by_name(dest);
 		if (C == NULL) print_server(currentserver, touser);
-		else print_channel(C, touser);
+		else{
+			print_channel(C, touser);
+			change_user_status(C, cmdparam, message);
+		}
 	}		
 
 	// :nick!host@domain INVITE nick :#channel
@@ -3278,21 +3289,28 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, channelname);
 		get_next_param(cmdparam, userstring);
 
-		C=channel_by_name(channelname);
+		C = channel_by_name(channelname);
 		//sprintf(scratch, "Nick:%s Channel:%s OP:%s Users:%s\n", dest, channelname, prefix, userstring);
 		//printf("%s\n", command);	
 		while(get_next_word(userstring, user)){
 			bzero(scratch, 63);
 			sprintf(scratch, " %-.9s\n", user);
-			add_user(C, user);
+			add_user(C, user, 0, 0);
 		}
 	}
-	//if user list is completely sent, refresh the user list;
+	/* if user list is completely sent, refresh the user list */
+	/* also place top and selected at top of the list         */
 	else if (strcmp(command,"366")==0){
+		channel *C;
+
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, fromchannel); 
-		if (channel_by_name(fromchannel)!=NULL){ 
-			refresh_user_list(channel_by_name(fromchannel));
+		C = channel_by_name(fromchannel);
+		if (C != NULL){
+			C->top = C->userlist;
+			C->selected = C->userlist;
+			set_channel_update_status(C, U_USER_REFRESH);
+			// refresh_user_list(C);
 		}
 	}
 

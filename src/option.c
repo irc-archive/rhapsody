@@ -365,7 +365,7 @@ int edit_favorite_servers(int key){
 			port = atoi(portstr);
 
 			if (!config_server_exists(&configuration, serverstr, port)){
-				add_config_server(&configuration, serverstr, port);
+				add_config_server(&configuration, serverstr, port, LIST_ORDER_FRONT);
 			}
 			/* destroy the main form so that it can be rebuilt and updated */
 			mainform = remove_form(mainform);
@@ -710,7 +710,7 @@ int edit_favorite_channels(int key){
 			strcpy(channelstr, Ftextline_buffer_contents(textline));
 
 			if (!config_channel_exists(&configuration, channelstr)){
-				add_config_channel(&configuration, channelstr);
+				add_config_channel(&configuration, channelstr, LIST_ORDER_FRONT);
 			}
 
 			/* destroy the main form so that it can be rebuilt and updated */
@@ -1272,7 +1272,7 @@ int edit_users(int key, int listnum){
 			strcpy(userstr, Ftextline_buffer_contents(textline));
 
 			if (!config_user_exists_exact(&configuration, listnum, userstr)) 
-				add_config_user(&configuration, listnum, userstr);
+				add_config_user(&configuration, listnum, userstr, LIST_ORDER_FRONT);
 
 			/* destroy the main form so that it can be rebuilt and updated */
 			mainform = remove_form(mainform);

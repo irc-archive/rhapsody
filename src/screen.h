@@ -71,11 +71,12 @@ void vprint_channel(channel *C, char *template, ...);
 void refresh_user_list(channel *C);
 int user_win_offset(channel *C);
 
-int add_user(channel *C, char *nick);
+int add_user(channel *C, char *nick, int op, int voice);
 int remove_user(channel *C, char *nick);
+int change_user_status(channel *C, char *nick, char *mode);
 void remove_all_users(channel *C);
 void quit_user(char *nick);
-char get_user_status(channel *C, char *nick);
+char get_user_status(channel *C, char *nick, int *op, int *voice);
 
 void select_next_user(channel *C);
 void select_prev_user(channel *C);

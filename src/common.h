@@ -171,6 +171,8 @@ struct nick_info{
 	struct nick_info *prev;
 	struct nick_info *next;
 	char nick[MAXNICKLEN];
+	int op;
+	int voice;
 };
 
 struct chat_info{
@@ -336,9 +338,13 @@ struct config_data{
 	int ctcpreply;
 	int ctcpthrottle;
         config_server *serverfavorite;           
+        config_server *lastserverfavorite;           
         config_channel *channelfavorite;
+        config_channel *lastchannelfavorite;
         config_user *userfavorite;           
+        config_user *lastuserfavorite;           
         config_user *userignored;
+        config_user *lastuserignored;
 	int changed;
 };
 

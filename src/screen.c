@@ -719,7 +719,10 @@ void refresh_user_list(channel *C){
 	
 	pos = 0;	
 	while(current!=NULL && pos <= LINES){
-		strcpy(scratch, " ");
+		if (current->op) strcpy(scratch, " @");
+		else if (current->voice) strcpy(scratch, " +");
+		else strcpy(scratch, " ");
+
 		strncat(scratch, current->nick, MAXNICKDISPLEN);
 		for (i=strlen(scratch); i<=MAXNICKDISPLEN; i++) scratch[i] = ' ';
 		scratch[i] = 0;
@@ -761,81 +764,132 @@ void end_channel(channel *C){
 	free (C);
 }
 
-int add_user(channel *C, char *nick){
-	user *current, *new;
-	char tempnick[MAXNICKLEN];
-	char heldnick[MAXNICKLEN];
+int add_user(channel *C, char *nick, int op, int voice){
+	user *current, *last, *new;
+	char tempnick[MAXNICKLEN + 3];
+	char heldnick[MAXNICKLEN + 3] ;
 	char *nickA;
 	char *nickB;
 
 	int order;
-	int topnum;
-	int selectednum;
-	int num;
+	int num, topnum, selectednum, insertednum;
+	int lower, higher, lorank, hirank;
 
 	if (C == NULL) return(0);
-	strncpy(heldnick, nick, MAXNICKLEN);
-	current=C->userlist;
-	if (current==NULL){
-		new = calloc(sizeof(user), 1);
-		if (new==NULL){
-			plog ("Cannot allocate userlist memory in add_user(:1)");
-			exit (0);
-		}
-		strncpy(new->nick, heldnick, MAXNICKLEN);
-		new->prev=NULL;
-		new->next=NULL;
-		C->userlist=new;
-		C->top=new;
-		C->selected=new;
+
+	new = calloc(sizeof(user), 1);
+	if (new==NULL){
+		plog ("Cannot allocate userlist memory in add_user(:1)");
+		exit (0);
+	}
+
+	if (nick[0] == '@' || nick[0] == '+') strcpy(new->nick, nick + 1);
+	else strcpy(new->nick, nick);
+	new->op = op;
+	new->voice = voice;
+	if (nick[0] == '@') new->op |= 1;
+	else if (nick[0] == '+') new->voice |= 1;
+
+	if (new->op) heldnick[0] = 1;
+	else if (new->voice) heldnick[0] = 2;
+	else heldnick[0] = ' ';
+	heldnick[1] = 0;
+	strcat(heldnick, new->nick);
+
+	if (C->userlist == NULL){
+		new->prev = NULL;
+		new->next = NULL;
+		C->userlist = new;
+		C->top = new;
+		C->selected = new;
+		// vprint_all("starting new list with %s\n", heldnick);
+		set_channel_update_status(C, U_USER_REFRESH);
+		return(1);
 	}
 	else {
 		num = 0;
-		while(current!=NULL){
-			if (current == C->top) topnum = num; 
-			if (current == C->selected) selectednum = num; 
-			if (current->next==NULL){
-				new = calloc(sizeof(user), 1);
-				if (new==NULL){
-					plog ("Cannot allocate userlist memory in add_user(:2)");
-					exit (0);
+		current = C->userlist;
+		while(current != NULL){
+			lower = 0;
+			higher = 0;
+
+			/* compare new to the previous and next entry */
+			if (current->prev == NULL) lower = 1;
+			else {
+				if (current->prev->op) tempnick[0] = 1;
+				else if (current->prev->voice) tempnick[0] = 2;
+				else tempnick[0] = ' ';
+				tempnick[1] = 0;
+				strcat(tempnick, current->prev->nick);
+				if (strcmp(heldnick, tempnick) > 0) lower = 1;
+
+			}
+
+			if (current->op) tempnick[0] = 1;
+			else if (current->voice) tempnick[0] = 2;
+			else tempnick[0] = ' ';
+			tempnick[1] = 0;
+			strcat(tempnick, current->nick);
+			if (strcmp(heldnick, tempnick) < 0) higher = 1;
+
+			/* if the new entry should lie between the previous and current entry, insert it there */
+			if (lower && higher){
+				if (current->prev != NULL){ 
+					(current->prev)->next = new;
+					new->prev = current->prev;
+					// vprint_all("inserting between %s and %s\n", current->prev->nick, current->nick);
 				}
-				strncpy(new->nick, heldnick, MAXNICKLEN);
-				new->prev=current;
-				new->next=NULL;
-				current->next=new;				
+				else {
+					new->prev = NULL;
+					C->userlist = new;
+					// vprint_all("inserting at start before %s\n", current->nick);
+				}
+
+				new->next = current;
+				current->prev = new;
+				insertednum = num;
 				break;
 			}
+			last = current;
 
-			// if current list nickname is > than held nickname swap them to sort list
-			// then continue down to the end of the list and add the last nick
-
-			order = strncmp(current->nick, heldnick, MAXNICKLEN);				
-
-			if ((current->nick)[0]=='@' && heldnick[0]!='@') order = -1;
-			else if ((current->nick)[0]!='@' && heldnick[0]=='@') order = 1;
-			else if ((current->nick)[0]=='+' && heldnick[0]!='+') order = -1;
-			else if ((current->nick)[0]!='+' && heldnick[0]=='+') order = 1;
-			else {
-				if ((current->nick)[0] == '@' || (current->nick)[0] == '+') nickA = (current->nick) + 1;
-				else nickA = current->nick;
-				if (heldnick[0] == '@' || heldnick[0] == '+') nickB = heldnick + 1;
-				else nickB = heldnick; 
-				order = strncmp(nickA, nickB, MAXNICKLEN);				
-			}
-
-			if (order == 0) break;				
-			else if (order > 0){				
-				strncpy(tempnick, current->nick, MAXNICKLEN);
-				strncpy(current->nick, heldnick, MAXNICKLEN);
-				strncpy(heldnick, tempnick, MAXNICKLEN);
-			}
-			current=current->next;
+			current = current->next;
 			num++;
 		}
-		if (topnum > selectednum && C->selected != NULL) C->top = C->selected;
-		else if (selectednum >= topnum + LINES - 3 && C->top != NULL) C->top = (C->top)->next;
+
+		/* if current is NULL, the new entry belongs at the end of the list */
+		if (current == NULL){
+			new->prev = last;
+			new->next = NULL;
+			last->next = new;
+			insertednum = num;
+			// vprint_all("inserting at end after %s\n", last->nick);
+		}
+
+		num = 0;
+		topnum = 0;
+		selectednum = 0;
+
+		/* count the position of the selected and top entry */
+		current = C->userlist;
+		while(current != NULL){
+			if (current == C->top) topnum = num; 
+			if (current == C->selected) selectednum = num; 
+			current = current->next;
+			num++;
+		}
+
+		/* if top and selected entries appear before the new entry, do nothing */
+		// if (selectednum <= insertednum && topnum <= insertednum) {}
+
+		/* if selected entry is above the top entry, move top to selected */  
+		if (topnum > selectednum) C->top = C->selected;
+
+		/* if selected entry is below the visible area, move the top down */
+		else if (selectednum >= topnum + LINES - 3 && C->top != NULL){
+			if (C->top->next != NULL) C->top = C->top->next;
+		}
 	}
+
 	set_channel_update_status(C, U_USER_REFRESH);
 	return(1);
 }
@@ -846,9 +900,10 @@ int remove_user(channel *C, char *nick){
 	if (C == NULL) return(0);
 	current=C->userlist;
 	while (current!=NULL){
-		if (strcmp(current->nick, nick)==0 || ((current->nick[0]=='@' || current->nick[0]=='+') && 
-			strcmp(current->nick + 1, nick)==0)){
+		//if (strcmp(current->nick, nick)==0 || ((current->nick[0]=='@' || current->nick[0]=='+') && 
+		//	strcmp(current->nick + 1, nick)==0)){
 
+		if (strcmp(current->nick, nick) == 0){
 			previous = current->prev;
 			next = current->next;
           
@@ -869,19 +924,58 @@ int remove_user(channel *C, char *nick){
 	return(0);
 }
 
-char get_user_status(channel *C, char *nick){
+char get_user_status(channel *C, char *nick, int *op, int *voice){
 	user *current;
+	char retval;
 
-	if (C == NULL) return(0);
+	if (C == NULL || nick == NULL) return(0);
 	current=C->userlist;
+	*op = 0;
+	*voice = 0;
+
 	while (current!=NULL){
-		if (strcmp(current->nick, nick)==0) return (0);
-		else if (current->nick[0]=='@' && strcmp(current->nick + 1, nick)==0) return ('@');
-		else if (current->nick[0]=='+' && strcmp(current->nick + 1, nick)==0) return ('+');			
+		//if (strcmp(current->nick, nick)==0) return (0);
+
+		//else if (current->nick[0]=='@' && strcmp(current->nick + 1, nick)==0) return ('@');
+		//else if (current->nick[0]=='+' && strcmp(current->nick + 1, nick)==0) return ('+');			
+		
+		if (strcmp(current->nick, nick) == 0){
+			retval = 0;
+			if (current->voice){
+				*voice = 1;
+				retval = '+';
+			}
+			if (current->op){
+				*op = 1; 
+				retval = '@';
+			}
+			return (retval);
+		}
 		current=current->next;
 	}
 	return(0);
 }
+
+int change_user_status(channel *C, char *nick, char *mode){
+	char newnick[MAXNICKLEN];
+	char currmode;
+	int voice;
+	int op;
+
+	if (C == NULL || nick == NULL) return(0);
+
+	currmode = get_user_status(C, nick, &op, &voice);	
+	if (remove_user(C, nick)){
+		if (strcmp(mode, "+o") == 0) op = 1;
+		else if (strcmp(mode, "-o") == 0) op = 0;
+		else if (strcmp(mode, "+v") == 0) voice = 1;
+		else if (strcmp(mode, "-v") == 0) voice = 0;
+		add_user(C, nick, op, voice);
+		return(1);
+	}
+	return(0);
+}	
+			
 
 void quit_user(char *nick){
         screen *current;
@@ -977,12 +1071,12 @@ void select_prev_user(channel *C){
 char *selected_channel_nick(channel *C){
 	if (C != NULL){
 		if ((C->selected) != NULL){
-			if ((C->selected)->nick[0] == '+' || (C->selected)->nick[0] == '@'){
-				return((C->selected)->nick + 1);
-			}
-			else {
+			//if ((C->selected)->nick[0] == '+' || (C->selected)->nick[0] == '@'){
+			//	return((C->selected)->nick + 1);
+			//}
+			//else {
 				return((C->selected)->nick);
-			}
+			//}
 		}
 	}
 	return(NULL);

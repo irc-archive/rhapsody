@@ -160,24 +160,24 @@ int read_config(char *config_file, config *C){
 				else if (strcasecmp(scope, "SERVER") == 0){
 					conv = sscanf(line, "%s %s", attrib, value);
 					//printf ("%d, %s, %s, %s\n", conv, attrib, value, line);
-					if (conv == 2) add_config_server(C, attrib, atoi(value));
+					if (conv == 2) add_config_server(C, attrib, atoi(value), LIST_ORDER_BACK);
 					else if (conv == 1 && strcmp(attrib, "}") == 0) strcpy(scope, ""); 
 				}
 
 				else if (strcasecmp(scope, "CHANNEL") == 0){
 					conv = sscanf(line, "%s", attrib);
 					if (conv == 1 && strcmp(attrib, "}") == 0) strcpy(scope, ""); 
-					else if (conv == 1) add_config_channel(C, attrib);
+					else if (conv == 1) add_config_channel(C, attrib, LIST_ORDER_BACK);
 				}
 				else if (strcasecmp(scope, "NICK") == 0){
 					conv = sscanf(line, "%s", attrib);
 					if (conv == 1 && strcmp(attrib, "}") == 0) strcpy(scope, ""); 
-					else if (conv == 1) add_config_user(C, CONFIG_FAVORITE_USER_LIST, attrib);
+					else if (conv == 1) add_config_user(C, CONFIG_FAVORITE_USER_LIST, attrib, LIST_ORDER_BACK);
 				}
 				else if (strcasecmp(scope, "IGNORE") == 0){
 					conv = sscanf(line, "%s", attrib);
 					if (conv == 1 && strcmp(attrib, "}") == 0) strcpy(scope, ""); 
-					else if (conv == 1) add_config_user(C, CONFIG_IGNORED_USER_LIST, attrib);
+					else if (conv == 1) add_config_user(C, CONFIG_IGNORED_USER_LIST, attrib, LIST_ORDER_BACK);
 				}
 			}
 			if (feof(fp)) break;
@@ -230,7 +230,7 @@ int read_config(char *config_file, config *C){
 	
 /** servers ************************************************************************/
 
-int add_config_server(config *C, char *name, unsigned int port){
+int add_config_server(config *C, char *name, unsigned int port, int order){
 	config_server *new;
 
 	new = malloc(sizeof(config_server));
@@ -240,16 +240,26 @@ int add_config_server(config *C, char *name, unsigned int port){
 	}
 	strncpy(new->name, name, MAXSERVERLEN-1);
 	new->port = port;
-	new->prev = NULL;
 	
-	if (C->serverfavorite == NULL){
+	if (order == LIST_ORDER_FRONT){
+		if (C->serverfavorite == NULL) new->next = NULL;
+		else{
+			(C->serverfavorite)->prev = new;
+			new->next = C->serverfavorite;
+		}
+		new->prev = NULL;
 		C->serverfavorite = new;
-		new->next = NULL;
+		if (C->lastserverfavorite == NULL) C->lastserverfavorite = new;
 	}
-	else{
-		(C->serverfavorite)->prev = new;
-		new->next = C->serverfavorite;
-		C->serverfavorite = new;
+	else if (order == LIST_ORDER_BACK){
+		if (C->lastserverfavorite == NULL) new->prev = NULL;
+		else{
+			(C->lastserverfavorite)->next = new;
+			new->prev = C->lastserverfavorite;
+		}
+		new->next = NULL;
+		C->lastserverfavorite = new;
+		if (C->serverfavorite == NULL) C->serverfavorite = new;
 	}
 	return(0);
 }
@@ -266,6 +276,7 @@ int remove_config_server(config *C, config_server *S){
 		if (next != NULL) next->prev = prev;
 
 		if (C->serverfavorite == S) C->serverfavorite = next;
+		if (C->lastserverfavorite == S) C->lastserverfavorite = prev;
 		free (S);
 		return(1);
 	}
@@ -288,7 +299,7 @@ int config_server_exists(config *C, char *name, unsigned int port){
 
 /** channel ************************************************************************/
 
-int add_config_channel(config *C, char *name){
+int add_config_channel(config *C, char *name, int order){
 	config_channel *new;
 
 	new = malloc(sizeof(config_channel));
@@ -297,17 +308,29 @@ int add_config_channel(config *C, char *name){
 		return(-1);
 	}
 	strncpy(new->name, name, MAXCHANNELLEN-1);
-	new->prev = NULL;
-	
-	if (C->channelfavorite == NULL){
+
+	if (order == LIST_ORDER_FRONT){
+		if (C->channelfavorite == NULL) new->next = NULL;
+		else{
+			(C->channelfavorite)->prev = new;
+			new->next = C->channelfavorite;
+		}
 		C->channelfavorite = new;
+		new->prev = NULL;
+		if (C->lastchannelfavorite == NULL) C->lastchannelfavorite = new;
+	}
+
+	else if (order == LIST_ORDER_BACK){
+		if (C->lastchannelfavorite == NULL) new->prev = NULL;
+		else{
+			(C->lastchannelfavorite)->next = new;
+			new->prev = C->lastchannelfavorite;
+		}
+		C->lastchannelfavorite = new;
 		new->next = NULL;
+		if (C->channelfavorite == NULL) C->channelfavorite = new;
 	}
-	else{
-		(C->channelfavorite)->prev = new;
-		new->next = C->channelfavorite;
-		C->channelfavorite = new;
-	}
+
 	return(0);
 }
 
@@ -323,6 +346,7 @@ int remove_config_channel(config *C, config_channel *S){
 		if (next != NULL) next->prev = prev;
 
 		if (C->channelfavorite == S) C->channelfavorite = next;
+		if (C->lastchannelfavorite == S) C->lastchannelfavorite = prev;
 		free (S);
 		return(1);
 	}
@@ -345,7 +369,7 @@ int config_channel_exists(config *C, char *name){
 
 /** user ************************************************************************/
 
-int add_config_user(config *C, int listnum, char *name){
+int add_config_user(config *C, int listnum, char *name, int order){
 	config_user *new;
 
 	new = malloc(sizeof(config_user));
@@ -354,28 +378,49 @@ int add_config_user(config *C, int listnum, char *name){
 		return(-1);
 	}
 	strncpy(new->name, name, MAXNICKLEN-1);
-	new->prev = NULL;
 
 	if (listnum == CONFIG_FAVORITE_USER_LIST){	
-		if (C->userfavorite == NULL){
+		if (order == LIST_ORDER_FRONT){
+			if (C->userfavorite == NULL) new->next = NULL;
+			else{
+				(C->userfavorite)->prev = new;
+				new->next = C->userfavorite;
+			}
 			C->userfavorite = new;
-			new->next = NULL;
+			new->prev = NULL;
+			if (C->lastuserfavorite == NULL) C->lastuserfavorite = new;
 		}
-		else{
-			(C->userfavorite)->prev = new;
-			new->next = C->userfavorite;
-			C->userfavorite = new;
+		else if (order == LIST_ORDER_BACK){
+			if (C->lastuserfavorite == NULL) new->prev = NULL;
+			else{
+				(C->lastuserfavorite)->next = new;
+				new->prev = C->lastuserfavorite;
+			}
+			C->lastuserfavorite = new;
+			new->next = NULL;
+			if (C->userfavorite == NULL) C->userfavorite = new;
 		}
 	}
 	else{
-		if (C->userignored == NULL){
+		if (order == LIST_ORDER_FRONT){
+			if (C->userignored == NULL) new->next = NULL;
+			else{
+				(C->userignored)->prev = new;
+				new->next = C->userignored;
+			}
 			C->userignored = new;
-			new->next = NULL;
+			new->prev = NULL;
+			if (C->lastuserignored == NULL) C->lastuserignored = new;
 		}
-		else{
-			(C->userignored)->prev = new;
-			new->next = C->userignored;
-			C->userignored = new;
+		else if (order == LIST_ORDER_BACK){
+			if (C->lastuserignored == NULL) new->prev = NULL;
+			else{
+				(C->lastuserignored)->next = new;
+				new->prev = C->lastuserignored;
+			}
+			C->lastuserignored = new;
+			new->next = NULL;
+			if (C->userignored == NULL) C->userignored = new;
 		}
 	}
 	return(0);

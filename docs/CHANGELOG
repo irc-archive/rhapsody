@@ -1,3 +1,11 @@
+Version 0.20a Alpha: Nov 12, 2004
+More Minor Bug Fixes
+
+- Now preserving sort order of lists when saving configuration  
+- Fixed sorting and status changes in channel screen user lists
+- PgUp and PgDn, Ctrl-Y and Ctrl-V keys now work in channel user lists
+- Corrected the function of Ctrl-Y and Ctrl-V keys in channel list screens
+
 Version 0.19a Alpha: Nov 5, 2004
 Minor Bug Fixes
 
