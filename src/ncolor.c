@@ -36,8 +36,16 @@
 int HAS_COLORS;	
 int CHANGE_COLORS;
 
+/************************************************************************************/
+/* menu and forms use the standard rhapsody palette, but text uses the mirc palette */
+/* use C_COLOR defines for menus, and mirc color palette for drawing text           */
+/************************************************************************************/
 
-/*
+
+/************************************/
+/* mirc palette using all 16 colors */
+/************************************
+
  0 white
  1 black
  2 blue     (navy)
@@ -55,7 +63,9 @@ int CHANGE_COLORS;
  14 grey
  15 lt.grey (silver)
 
-*/
+ ************************************/
+/* mirc palette using only 8 colors */
+/************************************/
 
 int mirc_color_palette_8[16]={
 	COLOR_BLACK,
@@ -64,34 +74,73 @@ int mirc_color_palette_8[16]={
 	COLOR_GREEN,
 	COLOR_RED,
 	COLOR_RED,
-	COLOR_CYAN,
+	COLOR_MAGENTA,
 	COLOR_YELLOW,
 	COLOR_YELLOW,
 	COLOR_GREEN,
 	COLOR_CYAN,
 	COLOR_CYAN,
-	COLOR_CYAN,
-	COLOR_MAGENTA,
+	COLOR_BLUE,
+	COLOR_RED,
 	COLOR_WHITE,
 	COLOR_WHITE
 };
 
+/************************************/
+/* curses 8 color standard palette  */
+/************************************
+
+	Curses Colors	Integer Value
+
+	COLOR_BLACK	0
+	COLOR_RED	1
+	COLOR_GREEN	2
+	COLOR_YELLOW	3
+	COLOR_BLUE	4
+	COLOR_MAGENTA	5
+	COLOR_CYAN	6
+	COLOR_WHITE	7
+
+ ************************************/
+/* rhapsody 16 color palette        */
+/************************************
+
+	Rhapsody Colors	Integer Value
+
+	C_BLACK         0
+	C_RED           1
+	C_GREEN         2
+	C_YELLOW        3
+	C_BLUE          4
+	C_MAGENTA       5
+	C_CYAN          6
+	C_WHITE         7
+
+	C_BROWN         8
+	C_PURPLE        9
+	C_ORANGE        10
+	C_LRED          11
+	C_LGREEN        12
+	C_LBLUE         13
+	C_GREY          14
+	C_LGREY         15
+
+*************************************/
+
 
 int begin_color(){
-
-	if ((HAS_COLORS = has_colors())){
+	if (has_colors()){
 		start_color();
 		init_color_palette();
 		init_pair(0, DEFAULT_COLOR_F, DEFAULT_COLOR_B);
 
-		#ifdef DEBUG
+		//#ifdef DEBUG
 			printf("Terminal has color support = YES\r\n");
 			printf("Terminal has colors = %d\r\n", COLORS);
 			printf("Terminal has color pairs = %d\r\n", COLOR_PAIRS);
-		#endif		
+		//#endif		
+		//exit(0);
 
-		CHANGE_COLORS = can_change_color();
-		
 		#ifdef DEBUG
 			if (CHANGE_COLORS) printf("Terminal can change color = YES\r\n");
 			else printf("Terminal can change color = NO\r\n");
@@ -106,63 +155,69 @@ int begin_color(){
 }
 
 void init_color_palette(){
+	int i, j, k;
 
-	if (CHANGE_COLORS){		
-		init_color(C_WHITE, 1000, 1000, 1000);
+	/* if 256 color pairs are available create a 16 color palette */
+
+	if (can_change_color() && COLOR_PAIRS >= 256){		
 		init_color(C_BLACK, 0, 0, 0);
-		init_color(C_BLUE, 0, 0, 1000);
 		init_color(C_GREEN, 0, 1000, 0);
 		init_color(C_RED, 1000, 0, 0);
-		init_color(C_BROWN, 1000, 0, 1000);
-		init_color(C_LBLUE, 250, 250, 1000);
 		init_color(C_YELLOW, 1000, 500, 500);
-		init_color(C_LGREEN, 250, 1000, 250);
-		init_color(C_LGREEN2, 500, 1000, 500);
-		init_color(C_AQUA, 500, 500, 1000);
-		init_color(C_LBLUE2, 500, 500, 1000);
+		init_color(C_BLUE, 0, 0, 1000);
+		init_color(C_MAGENTA, 500, 500, 1000);
+		init_color(C_CYAN, 500, 1000, 500);
+		init_color(C_WHITE, 1000, 1000, 1000);
+
+		init_color(C_BROWN, 1000, 0, 1000);
 		init_color(C_PURPLE, 0, 500, 1000);
+		init_color(C_ORANGE, 500, 500, 1000);
+		init_color(C_LRED, 1000, 250, 250);
+		init_color(C_LBLUE, 250, 250, 1000);
+		init_color(C_LGREEN, 250, 1000, 250);
 		init_color(C_GREY, 250, 250, 250);
 		init_color(C_LGREY, 500, 500, 500);
 
-		init_pair(-1, C_WHITE, C_WHITE);
-		init_pair(0, C_WHITE, C_WHITE);
-		init_pair(1, C_BLACK, C_WHITE);
-		init_pair(2, C_BLUE, C_WHITE);	
-		init_pair(3, C_GREEN, C_WHITE);
-		init_pair(4, C_RED, C_WHITE);
-		init_pair(5, C_BROWN, C_WHITE);
-		init_pair(6, C_LBLUE, C_WHITE);
-		init_pair(7, C_ORANGE, C_WHITE);
-		init_pair(8, C_YELLOW, C_WHITE);
-		init_pair(9, C_LGREEN, C_WHITE);
-		init_pair(10, C_LGREEN2, C_WHITE);
-		init_pair(11, C_AQUA, C_WHITE);
-		init_pair(12, C_LBLUE2, C_WHITE);
-		init_pair(13, C_PURPLE, C_WHITE);
-		init_pair(14, C_GREY, C_WHITE);
-		init_pair(15, C_LGREY, C_WHITE);
+		k = 0;
+		for (i = 0; i < 16; i++){
+			for (j = 0; j < 16; j++){
+				init_pair(k, j, i);
+				k++;
+			}
+		}	
 	}
 
-/*	Curses Colors	Integer Value
-	COLOR_BLACK	0
-	COLOR_BLUE	1
-	COLOR_GREEN	2
-	COLOR_CYAN	3
-	COLOR_RED	4
-	COLOR_MAGENTA	5
-	COLOR_YELLOW	6
-	COLOR_WHITE	7
-*/
-
-	// init the color palette, mirc style using only the eight availble colors
+	/* otherwise init the color palatte using only the 8 curses colors */
 	else {
-		int i, j;
-		for (i=0; i<16; i++){
-			for (j=0; j<16; j++){
-				init_pair(i*16+j, mirc_color_palette_8[j], mirc_color_palette_8[i]);				
+
+		k = 0;
+		for (i = 0; i < 8; i++){
+			for (j = 0; j < 8; j++){
+				init_pair(k, j, i);				
+				k++;
 			}
 		}	
 	}
 }
 
+/* ignore backround color for now, set it to default, changing it looks bad */
+/* also prevent the selection of a color which is the default backround */
+int mirc_palette(int fg, int bg){
+	if (fg < 0 || fg > 15) return(0);
+	else if (mirc_color_palette_8[fg] == configuration.win_color_bg) return(0);
+	else if (COLOR_PAIRS >= 256) return((configuration.win_color_bg << 4) | fg);
+	else return((configuration.win_color_bg << 3 ) | mirc_color_palette_8[fg]);
+}
+
+/* sets the colors to the proper color pair */
+int make_color_pair(int fg, int bg){
+	if (COLOR_PAIRS >= 256) return((bg << 4) | fg);
+	else return((bg << 3) | fg);
+}
+
+/* makes the proper color from foreground and background */
+int make_color(int fg, int bg){
+	return(COLOR_PAIR(make_color_pair(fg, bg)));
+}
+	
 

@@ -80,7 +80,7 @@ form *add_form (char *name, int id, int x, int y, int width, int height, int att
 	new->requestedy = y;
 	new->width = width;
 	new->height = height;
-	new->attr = attr;
+	new->attrib = attr;
 	new->style = style;
 	new->window = NULL;
 
@@ -120,7 +120,7 @@ form *remove_form(form *form){
 		entry = entry->next;
 	}
 
-	/* now free up the momory used up by the form and close its window */
+	/* now free up the memory used up by the form and close its window */
 	if (form->window != NULL) delwin(form->window);
 
 	current = form->list;
@@ -179,13 +179,17 @@ void print_form(form *form){
 		keypad(form->window, TRUE);
 		intrflush(form->window, FALSE);
 		meta(form->window, TRUE);
-		wbkgdset(form->window, ' ' | form->attr);		
+		wbkgdset(form->window, ' ' | form->attrib | A_REVERSE);		
 		werase(form->window);
 		box(form->window, 0, 0);
 	}
 		
+	/* reset the form to it normal attribute state */
+	wbkgdset(form->window, ' ' | form->attrib);		
+
+	/* draw the form in reverse so it stands out on mono terminals */
 	if ((form->style)&(STYLE_TITLE)){
-		wattrset(form->window, form->attr);
+		wattrset(form->window, form->attrib | A_REVERSE);
 		mvwhline(form->window, 2, 1, 0, form->width - 2);
 		mvwaddstr(form->window, 1, 2, form->name);
 	}
@@ -216,47 +220,6 @@ void print_form(form *form){
 	wrefresh(form->window);	
 }
 
-void redraw_form(form *form){
-	Fcomponent *current;
-	Ftextarea *textarea;
-	int active;
-
-	delwin(form->window);
-	form->window = newwin(form->height, form->width, form->y, form->x);
-	if (form->window == NULL){
-		plog("Cannot create form window in print_form (:1)\n");   
-		exit(MEMALLOC_ERR);   
-	}
-
-	wbkgdset(form->window, ' ' | form->attr);		
-	werase(form->window);
-	box(form->window, 0, 0);
-	touchwin(form->window);
-	wrefresh(form->window);
-
-	current = form->list;
-	while (current != NULL){
-		if (current == form->active) active = 1;
-		else active = 0; 
-		if (current->type == F_TEXTLINE) print_Ftextline(form, (Ftextline *)(current->component), active); 	
-		else if (current->type == F_LIST) print_Flist(form, (Flist *)(current->component), active); 	
-		else if (current->type == F_BUTTON) print_Fbutton(form, (Fbutton *)(current->component), active); 	
-		else if (current->type == F_CHECKBOX) print_Fcheckbox(form, (Fcheckbox *)(current->component), active); 	
-		else if (current->type == F_CHECKBOX_ARRAY) print_Fcheckbox_array(form, (Fcheckbox_array *)(current->component), active); 
-		current = current->next;
-	}
-
-	/* draw passive text areas */
-	textarea = form->textlist;
-	while (textarea != NULL){
-		print_Ftextarea(form, textarea); 	
-		textarea = textarea->next;
-	}
-
-	touchwin(form->window);
-	wrefresh(form->window);	
-}
-
 int process_form_events(form *F, int event){
 	int type;
 	int revent;
@@ -270,6 +233,15 @@ int process_form_events(form *F, int event){
 		else{ 
 			F->active = (F->active)->next;
 			if (F->active == NULL) F->active = F->list;
+		}
+		touchwin(F->window);
+		return(E_NONE);
+	}
+	if (event == E_PREV){
+		if (F->active == NULL) F->active = F->list;
+		else{ 
+			F->active = (F->active)->prev;
+			if (F->active == NULL) F->active = F->endlist;
 		}
 		touchwin(F->window);
 		return(E_NONE);
@@ -371,30 +343,24 @@ int active_form_component_id (form *form){
 
 /**** text area ***************************************************************************/
 
-/*
-struct form_textarea{
-        char name[256];
-        int x,y;
-        int height, width;
-        int style;
-        int bgcolor, fgcolor;
-	char *buffer;
-        Ftext *next;
-        Ftext *prev;
-};
-*/
 
-Ftextarea *add_Ftextarea(char *name, int x, int y, int width, int height, int style, int attr, char *text){
+Ftextarea *add_Ftextarea(char *name, int x, int y, int width, int height, int style, int attr, char *template, ...){
 	Ftextarea *new;
+	va_list ap;
+        char stringt[8196];
+
+        va_start(ap, template);
+        vsprintf(stringt, template, ap);
+        va_end(ap);
 
 	new = calloc(1, sizeof(Ftextarea));	
-        if (new == NULL){
+	if (new == NULL){
 		plog("Cannot allocate memory in add_Ftextarea(:1)\n");   
 		exit(MEMALLOC_ERR);   
 	}
 
-	new->buffer = malloc(strlen(text) + 1);	
-        if (new->buffer == NULL){
+	new->buffer = malloc(strlen(stringt) + 1);	
+	if (new->buffer == NULL){
 		plog("Cannot allocate memory in add_Ftextarea(:2)\n");   
 		exit(MEMALLOC_ERR);   
 	}
@@ -404,8 +370,8 @@ Ftextarea *add_Ftextarea(char *name, int x, int y, int width, int height, int st
 	new->width = width;
 	new->height = height;
 	new->style = style;	
-	new->attr = attr;
-	strcpy(new->buffer, text);
+	new->attrib = attr;
+	strcpy(new->buffer, stringt);
 	return(new);	
 }
 
@@ -426,8 +392,8 @@ void print_Ftextarea(form *form, Ftextarea *area){
 	lenstr = strlen(area->buffer);
 
 	/* if attribute is -1, area picks up form's attributes */
-	if (area->attr == -1) wattrset(form->window, form->attr);
-	else wattrset(form->window, area->attr);
+	if (area->attrib == -1) wattrset(form->window, form->attrib | A_REVERSE);
+	else wattrset(form->window, area->attrib | A_REVERSE);
 
 	t = 0;
 	for (i = area->y, k = 0; k < area->height; i++, k++){
@@ -445,9 +411,6 @@ void print_Ftextarea(form *form, Ftextarea *area){
 		}
 	}
 
-	//wattroff(form->window, A_BOLD);
-	//wattron(form->window, A_REVERSE);
-	//wattrset(form->window, COLOR_PAIR(FORM_CURSOR_COLOR_B*16+FORM_CURSOR_COLOR_F));
 	touchwin(form->window);
 }
 
@@ -467,8 +430,8 @@ char *Ftextarea_buffer_contents(Ftextarea *F){
 	
 /**** text line ***************************************************************************/
 
-Ftextline *add_Ftextline(char *name, int tx, int ty, int nameattr, int x, int y, int size, 
-	int width, int inattr, int style, int inputallow){
+Ftextline *add_Ftextline(char *name, int tx, int ty, int x, int y, int size, 
+	int width, int attr, int style, int inputallow){
 	Ftextline *new;
 
 	new = malloc(sizeof(Ftextline));	
@@ -489,8 +452,7 @@ Ftextline *add_Ftextline(char *name, int tx, int ty, int nameattr, int x, int y,
 	new->namey = ty;
 	new->buffersize = size;
 	new->width = width;
-	new->nameattr = nameattr;
-	new->inattr = inattr;
+	new->attrib = attr;
 	new->start = 0;
 	new->cursorpos = 0;
 	new->buffer[0] = 0;
@@ -515,49 +477,35 @@ void print_Ftextline(form *form, Ftextline *line, int active){
 
 	strstart = line->start;
 	linelen = width + line->x;
-	//lenstr = strlen(line->buffer + line->start);
 	lenstr = strlen(line->buffer);
 
-	wattrset(form->window, line->nameattr);
+	wattrset(form->window, form->attrib | A_REVERSE) ;
 	if (active){
 		wattron(form->window, A_BOLD);
 		mvwaddstr(form->window, line->namey, line->namex, line->name);
 		wattroff(form->window, A_BOLD);
 	}
 	else mvwaddstr(form->window, line->namey, line->namex, line->name);
-
-	wattrset(form->window, line->inattr);
-	wattron(form->window, A_REVERSE);
+	wattrset(form->window, line->attrib);
 
 	for (i = line->x, j = strstart; i < linelen; i++, j++){
 		if ((j == line->cursorpos) && active){
-			if (j < lenstr) mvwaddch(form->window, line->y, i, line->buffer[j]);
-			if (line->style & STYLE_CURSOR_DARK){
-				wattrset(form->window, COLOR_PAIR(F_CURSOR_COLOR_DARK_B*16+F_CURSOR_COLOR_DARK_F));
+			wattrset(form->window, line->attrib | A_REVERSE);
+			if (j < lenstr){
+				if (line->style & STYLE_MASK_TEXT) mvwaddch(form->window, line->y, i, '*');
+				else mvwaddch(form->window, line->y, i, line->buffer[j]);
 			}
-			else if (line->style & STYLE_CURSOR_LIGHT){
-				wattrset(form->window, COLOR_PAIR(F_CURSOR_COLOR_LIGHT_B*16+F_CURSOR_COLOR_LIGHT_F));
-			}
-			if (j < lenstr) mvwaddch(form->window, line->y, i, line->buffer[j]);
 			else mvwaddch(form->window, line->y, i, ' ');
-			wattrset(form->window, line->inattr);
-			wattron(form->window, A_REVERSE);
+			wattrset(form->window, line->attrib);
 		}
 		else {
 			if (j >= lenstr) mvwaddch(form->window, line->y, i, ' ');
-			else mvwaddch(form->window, line->y, i, line->buffer[j]);
+			else{
+				if (line->style & STYLE_MASK_TEXT) mvwaddch(form->window, line->y, i, '*');
+				else mvwaddch(form->window, line->y, i, line->buffer[j]);
+			}
 		}
 	}
-
-	/*
-	mvwaddstr(form->window, line->y, line->x, line->buffer + line->start);
-	if (active){
-		if (line->cursorpos > strlen(line->buffer + line->start)) cursorchar = ' ';
-		else cursorchar = line->buffer[line->start + line->cursorpos];
-		wattrset(form->window, COLOR_PAIR(FORM_CURSOR_COLOR_B*16+FORM_CURSOR_COLOR_F));
-		mvwaddch (form->window, line->y, line->x + line->cursorpos - line->start, cursorchar);
-	}	
-	*/
 	touchwin(form->window);
 }
 
@@ -646,7 +594,7 @@ int process_Ftextline_events(Ftextline *T, int event){
 
 /**** list ******************************************************************************/
 
-Flist *add_Flist(char *name, int tx, int ty, int x, int y, int width, int height, int bgcolor, int fgcolor, int style){
+Flist *add_Flist(char *name, int tx, int ty, int x, int y, int width, int height, int attr, int style){
 	Flist *new;
 
 	new = malloc(sizeof(Flist));	
@@ -661,8 +609,8 @@ Flist *add_Flist(char *name, int tx, int ty, int x, int y, int width, int height
 	new->namey = ty;
 	new->width = width;
 	new->height = height;
-	new->bgcolor = bgcolor;
-	new->fgcolor = fgcolor;
+	new->attrib = attr;
+	new->style = style;
 	new->top = NULL;
 	new->list = NULL;
 	new->last = NULL;
@@ -694,8 +642,7 @@ void print_Flist(form *form, Flist *list, int active){
 	height = list->height;
 	if (height > form->height - list->y) height = form->height - list->y - 1;
 
-	wattroff(form->window, A_REVERSE);
-	// wattrset(form->window, list->nameattr);
+	wattrset(form->window, form->attrib | A_REVERSE);
 	if (active){
 		wattron(form->window, A_BOLD);
 		mvwaddstr(form->window, list->namey, list->namex, list->name);
@@ -703,9 +650,7 @@ void print_Flist(form *form, Flist *list, int active){
 	}
 	else mvwaddstr(form->window, list->namey, list->namex, list->name);
 
-	wattrset(form->window, COLOR_PAIR(list->bgcolor*16+list->fgcolor));
-	
-
+	wattrset(form->window, list->attrib);
 	/* clear the list area */
 	for (j=list->y; (j < height + list->y); j++){
 		for (i=list->x, k=0; k < width; i++, k++){
@@ -717,17 +662,14 @@ void print_Flist(form *form, Flist *list, int active){
 	current=list->top;
 	for (j=list->y; (j < height + list->y) && current != NULL; j++){
 		if (current == list->selected){
-			wattron(form->window, A_REVERSE);
+			if ((list->style & STYLE_NO_HIGHLIGHT) == 0) wattron(form->window, A_REVERSE);
 			for (i=list->x, k=0; k < width; i++, k++){
 				if (k < strlen(current->text)){
 					mvwaddch(form->window, j, i, (current->text)[k]);
 				}
 				else mvwaddch(form->window, j, i, ' ');
 			}
-			for (i = strlen(current->text) + 2; i < width + 2; i++){
-				mvwaddch(form->window, j, i, ' ');
-			}
-			wattrset(form->window, COLOR_PAIR(list->bgcolor*16+list->fgcolor));
+			wattrset(form->window, list->attrib);
 		}
 
 		else{
@@ -914,6 +856,48 @@ int active_list_line_id(Flist *F){
 	return(-1);
 }
 
+int set_active_list_line_by_id(Flist *F, int id){
+	int i, offset;
+	Flistline *current, *topentry;
+        int topnum, found;
+
+	if (F != NULL){
+		current = F->list;
+		offset = 0;
+		while(current != NULL){
+			if (current->id == id){
+				F->top = current;
+				F->selected = current;
+				return(offset);
+			}
+			current = current->next;
+			offset++;		
+		}
+	}
+	return(-1);
+}
+
+int set_active_list_line_by_ptrid(Flist *F, void *ptrid){
+	int i, offset;
+	Flistline *current, *topentry;
+        int topnum, found;
+
+	if (F != NULL){
+		current = F->list;
+		offset = 0;
+		while(current != NULL){
+			if (current->ptrid == ptrid){
+				F->top = current;
+				F->selected = current;
+				return(offset);
+			}
+			current = current->next;
+			offset++;		
+		}
+	}
+	return(-1);
+}
+
 void *active_list_line_ptrid(Flist *F){
 	if (F != NULL){
 		if (F->selected != NULL){
@@ -945,8 +929,8 @@ void print_Fbutton(form *form, Fbutton *button, int active){
 	width = button->width;
 	if (width > form->width - button->x) width = form->width - button->x - 1;
 
-	wattrset(form->window, COLOR_PAIR(button->bgcolor*16+button->fgcolor));
-	if (active) wattron(form->window, A_REVERSE);
+	wattrset(form->window, button->attrib);
+	if (active) wattron(form->window, A_REVERSE | A_BOLD);
 
 	// clear the button area and print the text
 
@@ -966,7 +950,7 @@ void print_Fbutton(form *form, Fbutton *button, int active){
 	}
 }
 
-Fbutton *add_Fbutton(char *name, int x, int y, int width, int bgcolor, int fgcolor, int id, int style){
+Fbutton *add_Fbutton(char *name, int x, int y, int width, int attr, int id, int style){
 	Fbutton *new;
 
 	new = malloc(sizeof(Fbutton));	
@@ -977,8 +961,7 @@ Fbutton *add_Fbutton(char *name, int x, int y, int width, int bgcolor, int fgcol
 	new->x = x;
 	new->y = y;
 	new->width = width;
-	new->bgcolor = bgcolor;
-	new->fgcolor = fgcolor;
+	new->attrib = attr;
 	new->style = style;
 	new->eventid = id;
 
@@ -1016,9 +999,7 @@ void print_Fcheckbox(form *form, Fcheckbox *checkbox, int active){
 
 	// print the text title
 
-	wattrset(form->window, checkbox->attrib);
-	wattroff(form->window, A_REVERSE);
-
+	wattrset(form->window, form->attrib | A_REVERSE);
 	if (active) wattron(form->window, A_BOLD);
 	mvwaddstr(form->window, checkbox->texty, checkbox->textx, checkbox->text); 
 
@@ -1045,6 +1026,8 @@ void print_Fcheckbox(form *form, Fcheckbox *checkbox, int active){
 	}
 	else mc = ' ';
 	
+	wattrset(form->window, checkbox->attrib);
+	if (active) wattron(form->window, A_BOLD);
 	mvwaddch(form->window, checkbox->y, checkbox->x-1, lc); 
 	mvwaddch(form->window, checkbox->y, checkbox->x, mc); 
 	mvwaddch(form->window, checkbox->y, checkbox->x+1, rc); 
@@ -1116,9 +1099,7 @@ void print_Fcheckbox_array(form *form, Fcheckbox_array *checkboxes, int active){
 
 	// print the text title
 
-	wattrset(form->window, checkboxes->attrib);
-	wattroff(form->window, A_REVERSE);
-
+	wattrset(form->window, form->attrib | A_REVERSE);
 	if (active) wattron(form->window, A_BOLD);
 	mvwaddstr(form->window, checkboxes->texty, checkboxes->textx, checkboxes->text); 
 	wattroff(form->window, A_BOLD);

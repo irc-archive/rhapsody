@@ -46,7 +46,9 @@
 #include <curses.h>
 #endif
 
+
 #include "log.h"
+#include "ncolor.h"
 #include "events.h"
 #include "cevents.h"
 #include "common.h"
@@ -192,7 +194,7 @@ int print_screen_opt(WINDOW *win, char *buffer, int linelen, int indent, int att
 					}
 					bg_set=sscanf(colorcode, "%d", &bgcolor);
 				}
-				if (fg_set && fgcolor && (options & O_NOMONOCHROME)) attr_color = COLOR_PAIR(fgcolor);
+				if (fg_set > 0 && fgcolor && (options & O_NOMONOCHROME)) attr_color = COLOR_PAIR(mirc_palette(fgcolor, bgcolor));
 				else attr_color = 0;
 			}				
 			else {
@@ -270,30 +272,42 @@ int print_screen_opt(WINDOW *win, char *buffer, int linelen, int indent, int att
 }
 
 void print_all(char *buffer){
-        screen *current;
-                                
+	screen *current;
+
         current=screenlist;
         while(current!=NULL){
-                if (current->type==SERVER) print_server (current->screen, buffer);
-                else if (current->type==SERVER) print_server (current->screen, buffer);
-                else if (current->type==CHANNEL) print_channel (current->screen, buffer);
-                else if (current->type==CHAT) print_chat (current->screen, buffer);
-                else if (current->type==DCCCHAT) print_dcc_chat (current->screen, buffer);
-                else if (current->type==HELP) print_help (current->screen, buffer);
-                current=current->next;
-        }
+		if (current->type==SERVER) print_server (current->screen, buffer);
+		else if (current->type==CHANNEL) print_channel (current->screen, buffer);
+		else if (current->type==CHAT) print_chat (current->screen, buffer);
+		else if (current->type==DCCCHAT) print_dcc_chat (current->screen, buffer);
+		else if (current->type==HELP) print_help (current->screen, buffer);
+		current=current->next;
+	}
+}
+
+void print_all_attrib(char *buffer, int attrib){
+	screen *current;
+
+        current=screenlist;
+        while(current!=NULL){
+		if (current->type==SERVER) print_server_attrib (current->screen, buffer, attrib);
+		else if (current->type==CHANNEL) print_channel_attrib (current->screen, buffer, attrib);
+		else if (current->type==CHAT) print_chat_attrib (current->screen, buffer, attrib);
+		else if (current->type==DCCCHAT) print_dcc_chat_attrib (current->screen, buffer, attrib);
+		else if (current->type==HELP) print_help_attrib (current->screen, buffer, attrib);
+		current=current->next;
+	}
 }
      
-void vprint_all_attribs(int foreground, int background, char *template, ...){
+void vprint_all_attrib(int attrib, char *template, ...){
         va_list ap;
-        char stringt[MAXDATASIZE], stringc[MAXDATASIZE];
+        char stringt[MAXDATASIZE];
 
         va_start(ap, template);
         vsprintf(stringt, template, ap);
         va_end(ap);
 
-        sprintf(stringc, "\003%d,%d%s", foreground, background, stringt);
-	print_all(stringc);
+	print_all_attrib(stringt, attrib);
 }
 
 void vprint_all(char *template, ...){
@@ -481,6 +495,7 @@ int create_server_screen(server *S){
 	scrollok(S->message, TRUE);
 	wclear(S->message);
 	touchwin(S->message);
+	
 	// box(S->message,0,0);
 	return(1);
 
@@ -533,34 +548,36 @@ void print_server(server *S, char *buffer){
 	set_server_update_status(S, U_MAIN_REFRESH);
 }
 
-void vprint_server_attribs(server *S, int foreground, int background, char *template, ...){
-        va_list ap;
-        int i, length;
-        int currposx, currposy;
-        char stringt[MAXDATASIZE], stringc[MAXDATASIZE];
+void print_server_attrib(server *S, char *buffer, int attrib){
+	if (S!=NULL) print_screen_opt(S->message, buffer, COLS-2, 0, attrib, O_ALL);
+	set_server_update_status(S, U_MAIN_REFRESH);
+}
 
-        va_start(ap, template);
-        vsprintf(stringt, template, ap);
-        va_end(ap);
+void vprint_server_attrib(server *S, int attrib, char *template, ...){
+	va_list ap;
+	int i, length;
+	int currposx, currposy;
+	char stringt[MAXDATASIZE];
 
-        sprintf(stringc, "\003%d,%d%s", foreground, background, stringt);
-	print_server(S, stringc);
+	va_start(ap, template);
+	vsprintf(stringt, template, ap);
+	va_end(ap);
+
+	print_server_attrib(S, stringt, attrib);
 }
 
 void vprint_server(server *S, char *template, ...){
-        va_list ap;
-        int i, length;
-        int currposx, currposy;
-        char string[MAXDATASIZE];
+	va_list ap;
+	int i, length;
+	int currposx, currposy;
+	char string[MAXDATASIZE];
 
-        va_start(ap, template);
-        vsprintf(string, template, ap);
-        va_end(ap);
+	va_start(ap, template);
+	vsprintf(string, template, ap);
+	va_end(ap);
 
 	print_server(S, string);
 }
-
-
 
 int server_update_status(server *S){
 	if (S != NULL) return (S->update);
@@ -576,8 +593,6 @@ void unset_server_update_status(server *S, int update){
 }
 
 
-
-
 /* channel *************************************************************************************************/
 
 
@@ -589,9 +604,7 @@ int create_channel_screen(channel *C){
 	C->vline = newwin(LINES-3, 1, 1, COLS-USERWINWIDTH-1); 
 	scrollok(C->message, TRUE);
 	scrollok(C->user, FALSE);
-
-	wattrset(C->vline, COLOR_PAIR(CHANNEL_INFO_COLOR_B*16+CHANNEL_INFO_COLOR_F));
-	wattron(C->vline, A_REVERSE);
+	wattron(C->vline, A_REVERSE | MENU_COLOR);
 	wclear(C->message);
 	wclear(C->user);
 	mvwvline(C->vline, 0, 0, ' ', LINES-3);
@@ -645,8 +658,7 @@ int redraw_channel_screen(channel *C){
 	#endif
 	mvwin(C->user, 1, COLS-USERWINWIDTH);
 	mvwin(C->vline, 1, COLS-USERWINWIDTH-1); 
-	wattrset(C->vline, COLOR_PAIR(CHANNEL_INFO_COLOR_B*16+CHANNEL_INFO_COLOR_F));
-	wattron(C->vline, A_REVERSE);
+	wattron(C->vline, A_REVERSE | MENU_COLOR);
 	mvwvline(C->vline, 0, 0, ' ', LINES-3);
 
 	refresh_user_list(C);
@@ -659,7 +671,7 @@ int redraw_channel_screen(channel *C){
 void printmsg_channel(channel *C, char *nick, char *buffer){
 	char temp[MAXDATASIZE];
 
-	if (C!=NULL){
+	if (C != NULL){
 		// Print the message. If this is the current channel refresh its window
 		sprintf(temp, "%c<%s>%c %s\n", 2, nick, 2, buffer);
 		print_screen_opt(C->message, temp, COLS-USERWINWIDTH-3, 5, A_NORMAL, O_ALL);
@@ -669,30 +681,36 @@ void printmsg_channel(channel *C, char *nick, char *buffer){
 
 
 void print_channel(channel *C, char *buffer){
-	if (C!=NULL){
+	if (C != NULL){
 		print_screen_opt(C->message, buffer, COLS-USERWINWIDTH-3, 0, A_NORMAL, O_ALL);
 		set_channel_update_status(C, U_MAIN_REFRESH);
 	}
 }
 
+void print_channel_attrib(channel *C, char *buffer, int attrib){
+	if (C != NULL){
+		print_screen_opt(C->message, buffer, COLS-USERWINWIDTH-3, 0, attrib, O_ALL);
+		set_channel_update_status(C, U_MAIN_REFRESH);
+	}
+}
+
 void printmymsg_channel(channel *C, char *buffer){
-	if (C!=NULL){
+	if (C != NULL){
 		printmsg_channel(C, ((server *)(C->server))->nick, buffer);
 	}
 }
 
-void vprint_channel_attribs(channel *C, int foreground, int background, char *template, ...){
+void vprint_channel_attrib(channel *C, int attrib, char *template, ...){
         va_list ap;
         int i, length;
         int currposx, currposy;
-        char stringt[MAXDATASIZE], stringc[MAXDATASIZE];
+        char stringt[MAXDATASIZE];
 
         va_start(ap, template);
         vsprintf(stringt, template, ap);
         va_end(ap);
 
-        sprintf(stringc, "\003%d,%d%s", foreground, background, stringt);
-	print_channel(C, stringc);
+	print_channel_attrib(C, stringt, attrib);
 }
 
 void vprint_channel(channel *C, char *template, ...){
@@ -728,7 +746,6 @@ void refresh_user_list(channel *C){
 		scratch[i] = 0;
 		strcat(scratch, " ");
 		if (current == C->selected && C->selecting){
-			wattrset(C->user, COLOR_PAIR(USER_SELECT_COLOR_B*16+USER_SELECT_COLOR_F));
         		wattron(C->user, A_REVERSE);
         		wattron(C->user, A_BOLD);
 			// sprintf(scratch, " %-10s", current->nick);
@@ -1209,6 +1226,13 @@ void print_chat(chat *C, char *buffer){
 	}
 }
 
+void print_chat_attrib(chat *C, char *buffer, int attrib){
+        if (C!=NULL){
+		print_screen_opt(C->message, buffer, COLS-2, 0, attrib, O_ALL);
+		set_chat_update_status(C, U_MAIN_REFRESH);
+	}
+}
+
 void printmsg_chat(chat *C, char *nick, char *buffer){
 	char scratch[MAXDATASIZE];
 	if (C!=NULL){
@@ -1224,18 +1248,17 @@ void printmymsg_chat(chat *C, char *buffer){
 	}
 }
 
-void vprint_chat_attribs(chat *C, int foreground, int background, char *template, ...){
-        va_list ap;
-        int i, length;
-        int currposx, currposy;
-        char stringt[MAXDATASIZE], stringc[MAXDATASIZE];
+void vprint_chat_attrib(chat *C, int attrib, char *template, ...){
+	va_list ap;
+	int i, length;
+	int currposx, currposy;
+	char stringt[MAXDATASIZE];
 
-        va_start(ap, template);
-        vsprintf(stringt, template, ap);
-        va_end(ap);
+	va_start(ap, template);
+	vsprintf(stringt, template, ap);
+	va_end(ap);
 
-        sprintf(stringc, "\003%d,%d%s", foreground, background, stringt);
-	print_chat(C, stringc);
+	print_chat_attrib(C, stringt, attrib);
 }
 
 void vprint_chat(chat *C, char *template, ...){
@@ -1354,25 +1377,31 @@ void printmymsg_dcc_chat(dcc_chat *D, char *buffer){
 	}
 }
 
-void print_dcc_chat(dcc_chat *C, char *buffer){					
+void print_dcc_chat(dcc_chat *C, char *buffer){
 	if (C!=NULL){
 		print_screen_opt(C->message, buffer, COLS-2, 0, A_NORMAL, O_ALL);
 		set_dccchat_update_status(C, U_MAIN_REFRESH);
 	}
 }
 
-void vprint_dcc_chat_attribs(dcc_chat *C, int foreground, int background, char *template, ...){
-        va_list ap;
-        int i, length;
-        int currposx, currposy;
-        char stringt[MAXDATASIZE], stringc[MAXDATASIZE];
+void print_dcc_chat_attrib(dcc_chat *C, char *buffer, int attrib){
+	if (C!=NULL){
+		print_screen_opt(C->message, buffer, COLS-2, 0, attrib, O_ALL);
+		set_dccchat_update_status(C, U_MAIN_REFRESH);
+	}
+}
 
-        va_start(ap, template);
-        vsprintf(stringt, template, ap);
-        va_end(ap);
+void vprint_dcc_chat_attrib(dcc_chat *C, int attrib, char *template, ...){
+	va_list ap;
+	int i, length;
+	int currposx, currposy;
+	char stringt[MAXDATASIZE];
 
-        sprintf(stringc, "\003%d,%d%s", foreground, background, stringt);
-	print_dcc_chat(C, stringc);
+	va_start(ap, template);
+	vsprintf(stringt, template, ap);
+	va_end(ap);
+
+	print_dcc_chat_attrib(C, stringt, attrib);
 }
 
 void vprint_dcc_chat(dcc_chat *C, char *template, ...){
@@ -1820,8 +1849,10 @@ void select_next_list_channel_by_key(list *L, int key){
 	topnum = -1;
 	i = 0;
 
+	if (L == NULL) return;
+
 	/* select the next channel name that starts with key */
-	if ((L->selected)->viewnext != NULL) current = L->selected->viewnext;
+	if (L->selected != NULL && (L->selected)->viewnext != NULL) current = L->selected->viewnext;
 	else current = L->view;
 
 	found = 0;
@@ -2040,6 +2071,11 @@ void print_help(help *H, char *buffer){
 	set_help_update_status(H, U_MAIN_REFRESH);
 }
 
+void print_help_attrib(help *H, char *buffer, int attrib){
+	if (H!=NULL) print_screen_opt(H->message, buffer, COLS-2, 0, attrib, O_ALL);
+	set_help_update_status(H, U_MAIN_REFRESH);
+}
+
 int help_update_status(help *H){
 	return (H->update);
 }
@@ -2069,7 +2105,7 @@ int print_help_file(help *H, char *filename){
 		strcat(path, filename);
 		fp = fopen(path, "rb");
 		if (fp == NULL){
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Error displaying help file %s.\n", path);
+			vprint_all_attrib(ERROR_COLOR, "Error displaying help file %s.\n", path);
 			return(0);
 		}
 	}
@@ -2096,7 +2132,6 @@ inputwin *create_input_screen(){
 
 	new = malloc(sizeof(inputwin));
 	W = newwin(1, COLS, LINES-1, 0);
-	wattrset(W, COLOR_PAIR(INPUT_COLOR_B*16+INPUT_COLOR_F));
 	keypad(W, TRUE);
 	intrflush(W, FALSE);
 	meta(W, TRUE);
@@ -2368,7 +2403,7 @@ int print_inputline(inputwin *inputline){
 					j++;
 					i++;
 				}	
-				fg_set=sscanf(colorcode, "%d", &fgcolor);
+				fg_set = sscanf(colorcode, "%d", &fgcolor);
 	
 				if (fg_set && buffer[i+1]==','){		
 					mvwaddch(inputwin, 0, j, ',');
@@ -2389,9 +2424,9 @@ int print_inputline(inputwin *inputline){
 						i=i+2;
 						j++;
 					}
-					bg_set=sscanf(colorcode, "%d", &bgcolor);
+					bg_set = sscanf(colorcode, "%d", &bgcolor);
 				}
-				if (fg_set && fgcolor) attr_color = COLOR_PAIR(fgcolor);
+				if (fg_set > 0 && fgcolor) attr_color = COLOR_PAIR(mirc_palette(fgcolor, bgcolor));
 				else attr_color = 0;
 			}				
 			else {
@@ -2444,7 +2479,6 @@ menuwin *create_menu_screen(){
 	
 	new = malloc(sizeof(menuwin));
 	W = newwin(1, COLS, 0, 0);
-	wattrset(W, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
 	wattron(W, A_REVERSE);
 	mvwhline(W, 0, 0, ' ', COLS);
 	if (new != NULL){
@@ -2458,7 +2492,6 @@ void redraw_menu_screen(menuwin *M){
 	#ifdef RESIZE_CAPABLE
 	wresize(M->menuline, 1, COLS);
 	#endif
-	wattrset(M->menuline, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
 	wattron(M->menuline, A_REVERSE);
 	mvwhline(M->menuline, 0, 0, ' ', COLS);
 	touchwin(M->menuline);
@@ -2486,7 +2519,6 @@ statuswin *create_status_screen(){
 
 	new = malloc(sizeof(statuswin));
 	W = newwin(1, COLS, LINES-2, 0);
-	wattrset(W, COLOR_PAIR(STATUS_COLOR_B*16+STATUS_COLOR_F));
 	wattron(W, A_REVERSE);	
 	mvwhline(W, 0, 0, ' ', COLS);
 	keypad(W, TRUE);
@@ -2503,7 +2535,6 @@ void redraw_status_screen(statuswin *S){
 	#ifdef RESIZE_CAPABLE
 	wresize(S->statusline, 1, COLS);
 	#endif
-	wattrset(S->statusline, COLOR_PAIR(STATUS_COLOR_B*16+STATUS_COLOR_F));
 	wattron(S->statusline, A_REVERSE);	
 	mvwhline(S->statusline, 0, 0, ' ', COLS);
 	touchwin(S->statusline);
@@ -2526,31 +2557,28 @@ int statusline_update_status(statuswin *S){
 
 /* misc **************************************************************************************************/
 
-
 void progress_bar(WINDOW *win, int posy, int posx, int size, int percent){
-        int to_fill; 
-        int i;
- 
-        to_fill = (size*percent)/100;
-        wattrset(win, COLOR_PAIR(PROGRESS_COLOR_F));
-        wattron(win, A_REVERSE);
-        wattron(win, A_BOLD);
-        for (i=0; i<size; i++){
-                if (i==to_fill+1){
-                        if (has_colors){
-                                wattrset(win, COLOR_PAIR(PROGRESS_COLOR_B));
-                                wattron(win, A_REVERSE);
-                        }
-                        else {
-                                wattrset(win, A_NORMAL);
-                        }
-                }
-                mvwaddch(win, posy, posx+i, ' ');
-        }
-        wattrset(win, A_NORMAL);
+	int to_fill; 
+	int i;
+
+	to_fill = (size*percent)/100;
+	wattrset(win, make_color(PROGRESS_COLOR_F, PROGRESS_COLOR_B));
+	wattron(win, A_REVERSE);
+	wattron(win, A_BOLD);
+		for (i=0; i<size; i++){
+		if (i==to_fill+1){
+			if (has_colors){
+				wattrset(win, make_color(PROGRESS_COLOR_F, PROGRESS_COLOR_B));
+				wattron(win, A_REVERSE);
+			}
+			else {
+				wattrset(win, A_NORMAL);
+			}
+		}
+	mvwaddch(win, posy, posx+i, ' ');
+	}
+	wattrset(win, A_NORMAL);
 }
-
-
 server *server_by_name(char *servername){
 	screen *current;
 
@@ -2743,11 +2771,4 @@ screen *transfer_screen_by_name(char *name){
 	}
 	return(current);
 }
-
-
-
-
-
-
-
 

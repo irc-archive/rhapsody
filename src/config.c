@@ -36,6 +36,7 @@
 #endif
 
 #include "log.h"
+#include "ncolor.h"
 #include "common.h"
 #include "config.h"
 #include "screen.h"
@@ -46,8 +47,10 @@ int read_config(char *config_file, config *C){
 	char scope[MAXSCOPELEN];
 	char attrib[MAXLINELEN];
 	char value[MAXLINELEN];
+	char value2[MAXLINELEN];
 	FILE *fp;
 	int conv;
+	int fg, bg;
 
 	// init the config struct first
 
@@ -65,6 +68,34 @@ int read_config(char *config_file, config *C){
 	C->channelfavorite = NULL;
 	C->ctcpfinger[0] = 0;
 	C->ctcpuserinfo[0] = 0;
+
+	/* init the default color scheme */
+	C->menu_color_fg = DEFAULT_MENU_COLOR_F;
+	C->menu_color_bg = DEFAULT_MENU_COLOR_B;
+
+	C->form_color_fg = DEFAULT_FORM_COLOR_F;
+	C->form_color_bg = DEFAULT_FORM_COLOR_B;
+	C->formfield_color_fg = DEFAULT_FORMFIELD_COLOR_F;
+	C->formfield_color_bg = DEFAULT_FORMFIELD_COLOR_B;
+	C->formbutton_color_fg = DEFAULT_FORMBUTTON_COLOR_F;
+	C->formbutton_color_bg = DEFAULT_FORMBUTTON_COLOR_B;
+
+	C->win_color_fg = DEFAULT_WIN_COLOR_F;
+	C->win_color_bg = DEFAULT_WIN_COLOR_B;
+	
+	C->message_color = DEFAULT_MESSAGE_COLOR;
+	C->error_color = DEFAULT_ERROR_COLOR;
+	C->notice_color = DEFAULT_NOTICE_COLOR;
+	C->ctcp_color = DEFAULT_CTCP_COLOR;
+	C->dcc_color = DEFAULT_DCC_COLOR;
+	C->join_color = DEFAULT_JOIN_COLOR;
+	C->rename_color = DEFAULT_RENAME_COLOR;
+	C->kick_color = DEFAULT_KICK_COLOR;
+	C->mode_color = DEFAULT_MODE_COLOR;
+	C->invite_color = DEFAULT_INVITE_COLOR;
+
+	
+	assume_default_colors(C->win_color_fg, C->win_color_bg);
 	
 	fp = fopen(config_file, "r");
 
@@ -144,7 +175,7 @@ int read_config(char *config_file, config *C){
 							strcpy(C->ctcpuserinfo, value);
 						}
 
-
+						/* misc settings */
 						else if (strncasecmp(attrib, "AUTOSAVE", MAXDESCLEN) == 0){
 							C->autosave = atoi(value);
 						}
@@ -152,18 +183,73 @@ int read_config(char *config_file, config *C){
 							C->connecttimeout = atoi(value);
 						}
 
+						/* color settings */
+						else if (strncasecmp(attrib, "SCREENCOLOR", MAXDESCLEN) == 0){
+							sscanf(value, "%d,%d", &fg, &bg);
+							C->win_color_fg = fg;
+							C->win_color_bg = bg;
+						}
+						else if (strncasecmp(attrib, "MENUCOLOR", MAXDESCLEN) == 0){
+							sscanf(value, "%d,%d", &fg, &bg);
+							C->menu_color_fg = fg;
+							C->menu_color_bg = bg;
+						}
+						else if (strncasecmp(attrib, "FORMCOLOR", MAXDESCLEN) == 0){
+							sscanf(value, "%d,%d", &fg, &bg);
+							C->form_color_fg = fg;
+							C->form_color_bg = bg;
+						}
+						else if (strncasecmp(attrib, "FORMFIELDCOLOR", MAXDESCLEN) == 0){
+							sscanf(value, "%d,%d", &fg, &bg);
+							C->formfield_color_fg = fg;
+							C->formfield_color_bg = bg;
+						}
+						else if (strncasecmp(attrib, "FORMBUTTONCOLOR", MAXDESCLEN) == 0){
+							sscanf(value, "%d,%d", &fg, &bg);
+							C->formbutton_color_fg = fg;
+							C->formbutton_color_bg = bg;
+						}
+						else if (strncasecmp(attrib, "MESSAGECOLOR", MAXDESCLEN) == 0){
+							C->message_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "ERRORCOLOR", MAXDESCLEN) == 0){
+							C->error_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "NOTICECOLOR", MAXDESCLEN) == 0){
+							C->notice_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "CTCPCOLOR", MAXDESCLEN) == 0){
+							C->ctcp_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "DCCCOLOR", MAXDESCLEN) == 0){
+							C->dcc_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "JOINCOLOR", MAXDESCLEN) == 0){
+							C->join_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "RENAMECOLOR", MAXDESCLEN) == 0){
+							C->rename_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "KICKCOLOR", MAXDESCLEN) == 0){
+							C->kick_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "MODECOLOR", MAXDESCLEN) == 0){
+							C->mode_color = atoi(value);
+						}
+						else if (strncasecmp(attrib, "INVITECOLOR", MAXDESCLEN) == 0){
+							C->invite_color = atoi(value);
+						}
 					}
 					conv = sscanf(line, "%[^{ ] %[{]", attrib, value);
 					//printf ("%d, %s, %s, %s\n", conv, attrib, value, line);
 					if (conv == 2) strcpy(scope, attrib);
 				}
 				else if (strcasecmp(scope, "SERVER") == 0){
-					conv = sscanf(line, "%s %s", attrib, value);
+					conv = sscanf(line, "%s %s %s", attrib, value, value2);
 					//printf ("%d, %s, %s, %s\n", conv, attrib, value, line);
-					if (conv == 2) add_config_server(C, attrib, atoi(value), LIST_ORDER_BACK);
+					if (conv >= 2) add_config_server(C, attrib, atoi(value), value2, LIST_ORDER_BACK);
 					else if (conv == 1 && strcmp(attrib, "}") == 0) strcpy(scope, ""); 
 				}
-
 				else if (strcasecmp(scope, "CHANNEL") == 0){
 					conv = sscanf(line, "%s", attrib);
 					if (conv == 1 && strcmp(attrib, "}") == 0) strcpy(scope, ""); 
@@ -230,7 +316,7 @@ int read_config(char *config_file, config *C){
 	
 /** servers ************************************************************************/
 
-int add_config_server(config *C, char *name, unsigned int port, int order){
+int add_config_server(config *C, char *name, unsigned int port, char *password, int order){
 	config_server *new;
 
 	new = malloc(sizeof(config_server));
@@ -240,6 +326,8 @@ int add_config_server(config *C, char *name, unsigned int port, int order){
 	}
 	strncpy(new->name, name, MAXSERVERLEN-1);
 	new->port = port;
+	strncpy(new->password, password, MAXPASSLEN-1);
+	
 	
 	if (order == LIST_ORDER_FRONT){
 		if (C->serverfavorite == NULL) new->next = NULL;
@@ -583,7 +671,7 @@ int writeconfig(char *config_file, config *C){
 	fprintf(fp, "server {\n");
 	curr_server = C->serverfavorite;
 	while(curr_server != NULL){
-		fprintf(fp, "	%s %d\n", curr_server->name, curr_server->port);
+		fprintf(fp, "	%s %d %s\n", curr_server->name, curr_server->port, curr_server->password);
 		curr_server = curr_server->next;
 	}
 	fprintf(fp, "}\n");
@@ -646,6 +734,26 @@ int writeconfig(char *config_file, config *C){
 	fprintf(fp, "\n");
 	fprintf(fp, "autosave = %d\n", C->autosave);
 	fprintf(fp, "connecttimeout = %d\n", C->connecttimeout);
+	fprintf(fp, "\n");
+
+	fprintf(fp, "# Color Settings\n");
+	fprintf(fp, "\n");
+	fprintf(fp, "screencolor = %d,%d\n", C->win_color_fg, C->win_color_bg);
+	fprintf(fp, "menucolor = %d,%d\n", C->menu_color_fg, C->menu_color_bg);
+	fprintf(fp, "formcolor = %d,%d\n", C->form_color_fg, C->form_color_bg);
+	fprintf(fp, "formfieldcolor = %d,%d\n", C->formfield_color_fg, C->formfield_color_bg);
+	fprintf(fp, "formbuttoncolor = %d,%d\n", C->formbutton_color_fg, C->formbutton_color_bg);
+	fprintf(fp, "\n");
+	fprintf(fp, "messagecolor = %d\n", C->message_color);
+	fprintf(fp, "errorcolor = %d\n", C->error_color);
+	fprintf(fp, "noticecolor = %d\n", C->notice_color);
+	fprintf(fp, "ctcpcolor = %d\n", C->ctcp_color);
+	fprintf(fp, "dcccolor = %d\n", C->dcc_color);
+	fprintf(fp, "joincolor = %d\n", C->join_color);
+	fprintf(fp, "renamecolor = %d\n", C->rename_color);
+	fprintf(fp, "modecolor = %d\n", C->mode_color);
+	fprintf(fp, "kickcolor = %d\n", C->kick_color);
+	fprintf(fp, "invitecolor = %d\n", C->invite_color);
 
 	if (!ferror(fp)){
 		fclose(fp);	

@@ -14,7 +14,10 @@ Close the current window. This is equivalent to pressing Ctrl-K.
 7/quit
 Exit back to shell. This wont exit immediately, and you'll be prompted with a dialog box to confirm this. In case your option settings have changed and autosave is off, you'll also be asked if you want to save your settings before exiting.
 
-7/chat nick [message] or /msg nick [message] or /message nick [message]
+7/message nick message or /msg nick message
+Sends a short private message to nick. Unlike the /chat command no new chat window will be opened.
+
+7/chat nick [message] or /query nick [message] 
 Starts or continues a chat session with nick. If message is supplied it is also sent to nick. If this is a new session, a new window will be opened, otherwise the client will switch to the existing session window.
 
 7/dcc chat nick

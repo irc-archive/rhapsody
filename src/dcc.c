@@ -44,10 +44,11 @@
 #include <curses.h>
 #endif
 
+#include "log.h"
+#include "ncolor.h"
 #include "common.h"
 #include "network.h"
 #include "screen.h"
-#include "log.h"
 #include "dcc.h"
 
 /* start incoming dcc chat, connect to server */
@@ -62,7 +63,7 @@ int start_incoming_dcc_chat(dcc_chat *D){
 	D->active=0;
 	D->dccfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (D->dccfd == -1) {
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC Chat: Cannot create a socket\n");
+		vprint_all_attrib(ERROR_COLOR, "DCC Chat: Cannot create a socket\n");
 		return(0);
 	}
 
@@ -73,17 +74,19 @@ int start_incoming_dcc_chat(dcc_chat *D){
         initiator.sin_addr.s_addr = hostiph;
         bzero(&(initiator.sin_zero), 8);     
 
+	D->serverstatus=1;
+
 	alarm_occured=0;
 	alarm(CONNECTTIMEOUT);	
 	if (connect (D->dccfd, (struct sockaddr *)&initiator, sizeof(struct sockaddr)) < 0 || alarm_occured){
 		alarm_occured=0;	
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC Error while connecting to %s: %s\n", 
+		vprint_all_attrib(ERROR_COLOR, "DCC Error while connecting to %s: %s\n", 
 			inet_ntoa(hostaddr), strerror(errno));
+		D->serverstatus = -1;
 		return(0);
         }
 	fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 	D->active=1;
-	D->serverstatus=1;
 	return(1);
 }
 
@@ -108,11 +111,11 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 		D->dccfd = socket(AF_INET, SOCK_STREAM, 0);
 		fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 		if (D->dccfd == -1) {
-			vprint_dcc_chat(D, "Error (%d %s) opening DCC chat server socket.\nDCC chat functionality will not be available.\n", 
+			vprint_dcc_chat_attrib(D, ERROR_COLOR, "Error (%d %s) opening DCC chat server socket.\nDCC chat functionality will not be available.\n", 
 				errno, strerror(errno));
 			D->serverstatus = -1;
 			return(-1);
-        	}
+		}
 
 		/* find the next available free port */
 		for (port = portstartrange; port <= portendrange; port++){
@@ -127,7 +130,7 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 			/* if port in already in use, try the next one in the range */
 			if (berr == -1 && errno == EADDRINUSE){}
 			else if (berr == -1){
-				vprint_dcc_chat(D, "Error (%d %s) binding DCC chat server socket.\nDCC chat functionality will not be available.\n", 
+				vprint_dcc_chat_attrib(D, ERROR_COLOR, "Error (%d %s) binding DCC chat server socket.\nDCC chat functionality will not be available.\n", 
 				errno, strerror(errno));
 			}
 			else{
@@ -148,18 +151,18 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 
 		localhost = gethostbyname(configuration.dcchostname);
 		if (localhost == NULL){
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error starting DCC chat: lookup for \"%s\" failed\n", 
+			vprint_all_attrib(ERROR_COLOR, "Error starting DCC chat: lookup for \"%s\" failed\n", 
 				configuration.dcchostname);
 			return(0);
 		}
 
-		vprint_all("Using %s (%s) for DCC source host\n", configuration.dcchostname,
+		vprint_all_attrib(DCC_COLOR, "Using %s (%s) for DCC source host\n", configuration.dcchostname,
 			inet_ntoa(*((struct in_addr*)localhost->h_addr)));
 
 		D->localip = htonl(((struct in_addr *)(localhost->h_addr))->s_addr);
 
-		vprint_dcc_chat(D, "DCC chat server listening on port %d\n", ntohs(serveraddr.sin_port));
-		vprint_dcc_chat(D, "Awaiting connection from %s...\n", D->nick);
+		vprint_dcc_chat_attrib(D, DCC_COLOR, "DCC chat server listening on port %d\n", ntohs(serveraddr.sin_port));
+		vprint_dcc_chat_attrib(D, DCC_COLOR, "Awaiting connection from %s...\n", D->nick);
 		return(1);
 	}
 
@@ -168,7 +171,8 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 	        size = sizeof(struct sockaddr_in);
 	        new_fd = accept(D->dccfd, (struct sockaddr *)&clientaddr, &size);
 		if (new_fd != -1){	
-			vprint_dcc_chat(D, "Accepting DCC connection from %s port %d\n", inet_ntoa(clientaddr.sin_addr), ntohs(clientaddr.sin_port));
+			vprint_dcc_chat_attrib(D, DCC_COLOR, "Accepting DCC connection from %s port %d\n", inet_ntoa(clientaddr.sin_addr), 
+				ntohs(clientaddr.sin_port));
 			/* at this point close the listening socket and replace it with the active one */
 			close(D->dccfd);
 			D->dccfd = new_fd;
@@ -200,7 +204,7 @@ dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, 
 		ct = time(NULL);
 		t = localtime(&ct);
 		sprintf(filestamp, "%s.%04d%02d%02d%02d%02d%02d", filename, t->tm_year + 1900, t->tm_mon, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "DCC file %s exists, saving as %s\n", filename, filestamp);
+		vprint_all_attrib(DCC_COLOR, "DCC file %s exists, saving as %s\n", filename, filestamp);
 		sprintf(filepath, "%s/%s", configuration.dccdlpath, filestamp);
 		fclose(fp);
 		strcpy(filenamex, filestamp);
@@ -209,7 +213,7 @@ dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, 
 
 	fp = fopen(filepath, "wb");
 	if (fp == NULL){
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "DCC File: Couldn't open file %s for writing\n", filepath);
+		vprint_all_attrib(ERROR_COLOR, "DCC File: Couldn't open file %s for writing\n", filepath);
 
 		return(NULL);
 	}
@@ -254,7 +258,7 @@ dcc_file *add_outgoing_dcc_file(transfer *transfer, char *nick, char *filename){
 
 	fp = fopen(filename, "rb");
 	if (fp == NULL){
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "DCC File: Couldn't open file %s for reading\n", filename);
+		vprint_all_attrib(ERROR_COLOR, "DCC File: Couldn't open file %s for reading\n", filename);
 		return(NULL);
 	}
 
@@ -309,7 +313,7 @@ int start_incoming_dcc_file(dcc_file *D){
 
 	D->dccfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (D->dccfd == -1) {
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC File: Cannot create a socket for %s\n", D->filename);
+		vprint_all_attrib(ERROR_COLOR, "DCC File: Cannot create a socket for %s\n", D->filename);
 		remove_dcc_file(D);		
 		return(0);
 	}
@@ -326,10 +330,10 @@ int start_incoming_dcc_file(dcc_file *D){
 	if (connect (D->dccfd, (struct sockaddr *)&initiator, sizeof(struct sockaddr)) < 0 || alarm_occured){
 		if (alarm_occured){
 			alarm_occured = 0;
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Timeout while connecting to %s\n", inet_ntoa(hostaddr));
+			vprint_all_attrib(ERROR_COLOR, "Timeout while connecting to %s\n", inet_ntoa(hostaddr));
 		}
 		else{
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC Error while connecting to %s: %s\n", 
+			vprint_all_attrib(ERROR_COLOR, "DCC Error while connecting to %s: %s\n", 
 				inet_ntoa(hostaddr), strerror(errno));
 		}
 		return(0);
@@ -362,7 +366,7 @@ int start_outgoing_dcc_file(dcc_file *D){
 	if (D->serverstatus == 0){
 		D->dccfd = socket(AF_INET, SOCK_STREAM, 0);
 		if (D->dccfd == -1) {
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error (%d %s) opening DCC send server socket for filename %s.\n", 
+			vprint_all_attrib(ERROR_COLOR, "Error (%d %s) opening DCC send server socket for filename %s.\n", 
 				errno, strerror(errno), D->filename);
 			D->serverstatus = -1;
 			return(0);
@@ -381,7 +385,7 @@ int start_outgoing_dcc_file(dcc_file *D){
 			/* if port in already in use, try the next one in the range */
 			if (berr == -1 && errno == EADDRINUSE){}
 			else if (berr == -1){
-				vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error (%d %s) binding DCC send server socket.\n", 
+				vprint_all_attrib(ERROR_COLOR, "Error (%d %s) binding DCC send server socket.\n", 
 					errno, strerror(errno));
 			}
 			else{
@@ -402,18 +406,18 @@ int start_outgoing_dcc_file(dcc_file *D){
 
 		localhost = gethostbyname(configuration.dcchostname);
 		if (localhost == NULL){
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error starting DCC send: lookup for \"%s\" failed\n", 
+			vprint_all_attrib(ERROR_COLOR, "Error starting DCC send: lookup for \"%s\" failed\n", 
 				configuration.dcchostname);
 			return(0);
 		}
 
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_F, "Using %s (%s) for DCC source host\n", configuration.dcchostname,
+		vprint_all_attrib(DCC_COLOR, "Using %s (%s) for DCC source host\n", configuration.dcchostname,
 			inet_ntoa(*((struct in_addr*)localhost->h_addr)));
 
 		D->localip = htonl(((struct in_addr *)(localhost->h_addr))->s_addr);
 
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_F, "DCC send server listening on port %d\n", ntohs(serveraddr.sin_port));
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_F, "Awaiting connection from %s...\n", D->nick);
+		vprint_all_attrib(DCC_COLOR, "DCC send server listening on port %d\n", ntohs(serveraddr.sin_port));
+		vprint_all_attrib(DCC_COLOR, "Awaiting connection from %s...\n", D->nick);
 		return(1);
 	}
 
@@ -422,7 +426,7 @@ int start_outgoing_dcc_file(dcc_file *D){
 	        size = sizeof(struct sockaddr_in);
 	        new_fd = accept(D->dccfd, (struct sockaddr *)&clientaddr, &size);
 		if (new_fd != -1){	
-			vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_F, "Accepting DCC connection from %s port %d\n", 
+			vprint_all_attrib(DCC_COLOR, "Accepting DCC connection from %s port %d\n", 
 				inet_ntoa(clientaddr.sin_addr), ntohs(clientaddr.sin_port));
 			/* at this point close the listening socket and replace it with the active one */
 			close(D->dccfd);
@@ -450,7 +454,7 @@ int get_dcc_file(dcc_file *D){
 
 			fwrite(buffer, len, 1, D->dccfp);
 			if (ferror(D->dccfp)){
-				vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s writing to file %s. Closing connection...\n", 
+				vprint_all_attrib(ERROR_COLOR, "Error %d, %s writing to file %s. Closing connection...\n", 
 					errno, strerror(errno), D->filename);
 				remove_dcc_file(D);		
 				return(-1);
@@ -468,7 +472,7 @@ int get_dcc_file(dcc_file *D){
 				//send_ball(D->dccfd, ack, 4);
 			}
 			else{
-				vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s while receiving %s. Closing connection...\n", 
+				vprint_all_attrib(ERROR_COLOR, "Error %d, %s while receiving %s. Closing connection...\n", 
 				errno, strerror(errno), D->filename);
 				remove_dcc_file(D);		
 				return(-1);
@@ -500,7 +504,7 @@ int put_dcc_file(dcc_file *D){
 			// return(0);
 		}
 		else if (ferror(D->dccfp)){
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s reading file %s. Closing connection...\n", 
+			vprint_all_attrib(ERROR_COLOR, "Error %d, %s reading file %s. Closing connection...\n", 
 				 errno, strerror(errno), D->filename);
 			remove_dcc_file(D);		
 			return(-1);
@@ -515,7 +519,7 @@ int put_dcc_file(dcc_file *D){
 
 			/* nothing was sent */
 			else if (len == -1){
-				vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "DCC error sending %s: %d %s\n", D->filename, errno, strerror(errno));
+				vprint_all_attrib(ERROR_COLOR, "DCC error sending %s: %d %s\n", D->filename, errno, strerror(errno));
 				remove_dcc_file(D);		
 				return(-1);			
 			}
@@ -564,12 +568,12 @@ int get_dccack(dcc_file *D){
 
 		}
 		else if (len > 0){
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Received %d byte DCC ack for %s. Closing connection...\n", len, D->filename);
+			vprint_all_attrib(ERROR_COLOR, "Received %d byte DCC ack for %s. Closing connection...\n", len, D->filename);
 			remove_dcc_file(D);		
 			return(-1);
 		}			
 		else{
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_F, "Error %d, %s receiving DCC ack for %s. Closing connection...\n", 
+			vprint_all_attrib(ERROR_COLOR, "Error %d, %s receiving DCC ack for %s. Closing connection...\n", 
 			errno, strerror(errno), D->filename);
 			remove_dcc_file(D);		
 			return(-1);

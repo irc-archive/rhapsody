@@ -2,11 +2,6 @@
 #define M_SELECTABLE 0x0001
 #define M_DIVIDER 0x0010
 
-#define MENU_COLOR_F 2
-#define MENU_COLOR_B 1 
-#define MENU_COLOR_DIM_F 2
-#define MENU_COLOR_DIM_B 3
-
 #define MENUNAMELEN 64
 
 typedef struct MENUDATA menu;

@@ -1,20 +1,23 @@
 int HAS_COLORS;
 int CHANGE_COLORS;
 
-#define C_WHITE		0
-#define C_BLACK		1
-#define C_BLUE		2
-#define C_GREEN		3
-#define C_RED		4
-#define C_BROWN		5
-#define C_LBLUE		6
-#define C_ORANGE	7
-#define C_YELLOW	8
-#define C_LGREEN	9
-#define C_LGREEN2	10
-#define C_AQUA		11
-#define C_LBLUE2	12
-#define C_PURPLE	13
+/* map 16 color rhapsody palette to 6 color curses palette */
+
+#define C_BLACK		COLOR_BLACK
+#define C_RED		COLOR_RED
+#define C_GREEN		COLOR_GREEN
+#define C_YELLOW	COLOR_YELLOW
+#define C_BLUE		COLOR_BLUE
+#define C_MAGENTA	COLOR_MAGENTA
+#define C_CYAN		COLOR_CYAN
+#define C_WHITE		COLOR_WHITE
+
+#define C_BROWN		8
+#define C_PURPLE	9
+#define C_ORANGE	10
+#define C_LRED		11
+#define C_LGREEN	12
+#define C_LBLUE		13
 #define C_GREY		14
 #define C_LGREY		15
 
@@ -24,11 +27,6 @@ int CHANGE_COLORS;
 int begin_color(void);
 void init_color_palette(void);
 
-	
-	
-
-
-
-
-
-
+int mirc_palette(int fg, int bg);
+int make_color_pair(int fg, int bg);
+int make_color(int fg, int bg);

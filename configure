@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PROGRAMNAME="rhapsody"
-PROGRAMVER="0.23b"
+PROGRAMVER="0.24b"
 
 ###########################################################
 # Get command line parameters                             #
@@ -88,21 +88,21 @@ fi
 echo ""
 
 
-if [ $OS = "Linux" ] ; then
+if [ "$OS" = "Linux" ] ; then
 	CCPATH="/usr/bin /usr/local/bin"
 	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
 	BASELIBS="-lncurses"
 	BASELIBPATHS="-L/usr/lib"
 	BASEINCPATHS="-I/usr/include"
 	BASEFLAGS=""
-elif [ $OS = "SunOS" ] ; then
+elif [ "$OS" = "SunOS" ] ; then
 	CCPATH="/usr/bin /usr/local/bin"
 	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
 	BASELIBS="-lncurses -lnsl -lsocket" 
 	BASELIBPATHS=""
 	BASEINCPATHS="-I/usr/local/include/"
 	BASEFLAGS=""
-elif [ $OS = "Darwin" ] ; then
+elif [ "$OS" = "Darwin" ] ; then
 	CCPATH="/usr/bin /usr/local/bin"
 	CURSESPATH="/sw/include /usr/include /sw/include/ncurses /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
 	INCPATH="/usr/include /usr/local/include"
@@ -110,27 +110,34 @@ elif [ $OS = "Darwin" ] ; then
 	BASELIBPATHS="-L/sw/lib"
 	BASEINCPATHS=""
 	BASEFLAGS="-no-cpp-precomp"
-elif [ $OS = "OpenBSD" -o $OS = "FreeBSD" -o $OS = "NetBSD" ] ; then
+elif [ "$OS" = "OpenBSD" -o $OS = "FreeBSD" -o $OS = "NetBSD" ] ; then
 	CCPATH="/usr/bin /usr/local/bin"
 	BASELIBS="-lncurses" 
 	BASELIBPATHS="-L/usr/lib"
 	BASEINCPATHS="-I/usr/include"
 	BASEFLAGS=""	
-elif [ $OS = "IRIX64" ] ; then
+elif [ "$OS" = "IRIX64" ] ; then
 	CCPATH="/usr/freeware/bin /usr/bin"
 	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
 	BASELIBS="-lncurses" 
 	BASELIBPATHS="-L/usr/freeware/lib64"
 	BASEINCPATHS=""
 	BASEFLAGS="-mabi=64"
-elif [ $OS = "IRIX" ] ; then
+elif [ "$OS" = "IRIX" ] ; then
 	CCPATH="/usr/freeware/bin /usr/bin"
 	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
 	BASELIBS="-lncurses" 
 	BASELIBPATHS="-L/usr/freeware/lib32"
 	BASEINCPATHS=""
 	BASEFLAGS="-mabi=n32"
-elif [ $OSNAME = "Cygwin" ] ; then
+elif [ "$OS" = "BeOS" -o "$OS" = "Zeta" ] ; then
+	CCPATH="/boot/develop/bin /bin"
+	CURSESPATH="/boot/develop/headers /boot/develop/headers/gnu /boot/home/config/include"
+	BASELIBS="-lncurses -lsocket -lbind"
+	BASELIBPATHS="-L/boot/home/config/lib"
+	BASEINCPATHS="-I/boot/home/config/include"
+	BASEFLAGS=""
+elif [ "$OSNAME" = "Cygwin" ] ; then
 	CCPATH="/usr/bin /usr/local/bin"
 	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
 	BASELIBS="-lncurses" 

@@ -11,7 +11,7 @@ FILE *open_config(char *config_file);
 int read_config(char *config_file, config *C);
 int writeconfig(char *config_file, config *C);
 
-int add_config_server(config *C, char *name, unsigned int port, int order);
+int add_config_server(config *C, char *name, unsigned int port, char *password, int order);
 int remove_config_server(config *C, config_server *server);
 int config_server_exists(config *C, char *name, unsigned int port);
 

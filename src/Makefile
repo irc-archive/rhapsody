@@ -18,7 +18,7 @@ $(PROGRAMNAME): $(OBJECTS)
 log.o: log.c log.h defines.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
-config.o: config.c config.h defines.h
+config.o: config.c config.h defines.h common.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 main.o: main.c main.h common.h defines.h 
@@ -48,13 +48,13 @@ parser.o: parser.c parser.h common.h defines.h
 ncolor.o: ncolor.c ncolor.h defines.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
-cmenu.o: cmenu.c cmenu.h defines.h
+cmenu.o: cmenu.c cmenu.h defines.h common.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 forms.o: forms.c forms.h defines.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
-option.o: option.c option.h defines.h
+option.o: option.c option.h defines.h common.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 html: html.c 

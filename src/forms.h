@@ -19,22 +19,17 @@
 #define F_YELLOW 7
 #define F_PINK 13
 
-#define F_CURSOR_COLOR_DARK_F F_WHITE
-#define F_CURSOR_COLOR_DARK_B F_BLACK
-#define F_CURSOR_COLOR_LIGHT_F F_BLACK
-#define F_CURSOR_COLOR_LIGHT_B F_WHITE
-
-#define STYLE_CURSOR_DARK 0x0001   
-#define STYLE_CURSOR_LIGHT 0x0002
+#define STYLE_TITLE 0x0001
+#define STYLE_CHECKBOX_ROUND 0x0010
+#define STYLE_CHECKBOX_TRIANGLE 0x0020
+#define STYLE_CHECKBOX_STAR 0x0040
+#define STYLE_NO_HIGHLIGHT 0x0100
+#define STYLE_MASK_TEXT 0x0200
 #define STYLE_LEFT_JUSTIFY 0x1000
 #define STYLE_RIGHT_JUSTIFY 0x2000
 #define STYLE_CENTER_JUSTIFY 0x4000
 
-#define STYLE_TITLE 0x0004
 
-#define STYLE_CHECKBOX_ROUND 0x0010
-#define STYLE_CHECKBOX_TRIANGLE 0x0020
-#define STYLE_CHECKBOX_STAR 0x0080
 
 #define F_TEXTLINE 1
 #define F_LIST 2
@@ -79,7 +74,7 @@ void print_form(form *form);
 
 /*** text area ***********************************************************************/
 
-Ftextarea *add_Ftextarea(char *name, int x, int y, int width, int height, int style, int attr, char *text);
+Ftextarea *add_Ftextarea(char *name, int x, int y, int width, int height, int style, int attr, char *template, ...);
 int remove_Ftextarea(form *form, Ftextarea *area);
 void print_Ftextarea(form *form, Ftextarea *area);
 void set_Ftextarea_buffer(Ftextarea *F, char *buffer);
@@ -88,8 +83,7 @@ char *Ftextarea_buffer_contents(Ftextarea *F);
 /*** textline ************************************************************************/
 
 
-Ftextline *add_Ftextline(char *name, int tx, int ty, int nameattr, int x, int y, int size,
-        int width, int inattr, int style, int inputallow);
+Ftextline *add_Ftextline(char *name, int tx, int ty, int x, int y, int size, int width, int attr, int style, int inputallow);
 int remove_Ftextline(Ftextline *textline);
 int process_Ftextline_events(Ftextline *T, int event);
 void set_Ftextline_buffer(Ftextline *F, char *buffer);
@@ -104,19 +98,22 @@ void print_Ftextline(form *form, Ftextline *line, int active);
 
 /*** list *****************************************************************************/
 
-Flist *add_Flist(char *name, int tx, int ty, int x, int y, int width, int height, int bgcolor, int fgcolor, int style);
+Flist *add_Flist(char *name, int tx, int ty, int x, int y, int width, int attrib, int fgcolor, int style);
 int remove_Flist(Flist *list);
 void print_Flist(form *form, Flist *list, int active);
 int process_Flist_events(Flist *F, int event);
 Flistline *add_Flistline(Flist *list, int id, char *string, void *ptrid, int type);
+
 Flistline *active_list_line(Flist *F);
 char *active_list_line_text(Flist *F);
 int active_list_line_id(Flist *F);
 void *active_list_line_ptrid(Flist *F);
+int set_active_list_line_by_id(Flist *F, int id);
+int set_active_list_line_by_ptrid(Flist *F, void *ptrid);
 
 /*** button ***************************************************************************/
 
-Fbutton *add_Fbutton(char *name, int x, int y, int width, int bgcolor, int fgcolor, int eventid, int style);
+Fbutton *add_Fbutton(char *name, int x, int y, int width, int attr, int eventid, int style);
 int remove_Fbutton(Fbutton *button);
 void print_Fbutton(form *form, Fbutton *button, int active);
 int process_Fbutton_events(Fbutton *F, int event);
@@ -162,7 +159,7 @@ struct form_info{
 	int requestedx, requestedy;	// requested position of form on screen
 	int x,y;			// actual position
 	int width, height;		
-	int attr; 			// form color attribute
+	int attrib; 			// form color attribute
 	int style;			// rendering style
 	Fcomponent *list;		// component list start
 	Fcomponent *endlist;		// component list end
@@ -188,7 +185,7 @@ struct form_text_line{
 	int start;
 	int width;
 	int cursorpos;
-	int nameattr, inattr;
+	int attrib;
 	int style;
 	int inputallow;
 };
@@ -204,7 +201,7 @@ struct form_list{
 	Flistline *last;
 	Flistline *selected;
 	int style;
-	int bgcolor, fgcolor;
+	int attrib;
 };
 
 struct form_list_line{
@@ -220,7 +217,7 @@ struct form_button{
 	int x,y;
 	int height, width;
 	int style;
-	int bgcolor, fgcolor;
+	int attrib;
 	int eventid;
 };
 
@@ -256,7 +253,7 @@ struct form_textarea{
 	int x,y;
 	int height, width;
 	int style;
-	int attr;
+	int attrib;
 	char *buffer;
 	Ftextarea *next;
 	Ftextarea *prev;

@@ -34,6 +34,8 @@ overwrite it by running configure with the -i option.
 
 That's it! Enjoy!
 
+
+
 Requirements
 
 Unix OS
@@ -49,6 +51,7 @@ work on:
 * Mac OS X (Darwin)
 * Solaris
 * IRIX
+* BeOS (BONE required) and Zeta (use ./configure -i /boot/apps/rhapsody)
 
 If the compilation fails on your OS for whatever reason, it's likely that
 your system doesn't have one or more of the required components, rhapsody
@@ -67,11 +70,6 @@ The program requires the ncurses library version 5.0 or later. You WILL
 run into problems with earlier versions of ncurses. Ncurses can be found at 
 http://www.gnu.org/software/ncurses/
 
-Socket and NSL Libraries
-
-Depending on the OS, this may or may not be required for compilation.
-Linux, BSD, IRIX do not require these libraries, Solaris on the other hand
-does.
 
 
 Compilation and Installation Problems
@@ -102,7 +100,6 @@ of the returned files and pass its path, excluding the filename, to the
 configure script as shown above. Run make clean and make. If multiple
 files are returned in the search and you are getting an excessive number
 of warnings during compilation, try picking another file from the list. 
-
 
 2. Error: ld: cannot find -lncurses
 

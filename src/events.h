@@ -14,5 +14,5 @@
 #define E_NEXT_WINDOW2 0x09			/* Ctrl-I (TAB) next window */
 #define E_PREV_WINDOW2 0x1a			/* Ctrl-Z prev window */
 #define E_NEXT 0x0009
-#define E_PREV 0xfff9
+#define E_PREV 0x001a
 #define E_COMPONENT_ID 0xfffa

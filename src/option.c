@@ -42,6 +42,7 @@
 #include <curses.h>
 #endif
 
+#include "ncolor.h"
 #include "common.h"
 #include "screen.h"
 #include "events.h"
@@ -50,102 +51,33 @@
 #include "option.h"
 #include "config.h"
 
-#define FORM_ID_OK 1
-#define FORM_ID_CANCEL 27
-#define FORM_ID_YES 1
-#define FORM_ID_NO 0
-#define FORM_ID_SERVER 10
-#define FORM_ID_PORT 11
-#define FORM_ID_SERVER_ADD 12
-#define FORM_ID_SERVER_DELETE 13
-#define FORM_ID_SERVER_EDIT 14
-#define FORM_ID_NICK 32 
-#define FORM_ID_ALTNICK 33 
-#define FORM_ID_NAME 34 
-#define FORM_ID_USER 35
-#define FORM_ID_HOST 36
-#define FORM_ID_DOMAIN 37
-#define FORM_ID_MODE_I 38
-#define FORM_ID_MODE_W 39
-#define FORM_ID_MODE_S 40
-
-#define FORM_ID_CONNECT_TIMEOUT 51 
-#define FORM_ID_AUTOSAVE 52
-
-#define FORM_ID_OTHER 255
-#define FORM_ID_SERVERLIST_START 1024
-
-#define FORM_ID_CHANNEL 50
-#define FORM_ID_CHANNEL_ADD 51
-#define FORM_ID_CHANNEL_DELETE 52
-#define FORM_ID_CHANNEL_EDIT 53
-#define FORM_ID_CHANNELLIST_START 2048
-
-#define FORM_ID_SEARCH 60
-#define FORM_ID_USERSMORE 61
-#define FORM_ID_USERSLESS 62
-#define FORM_ID_SORT 63
-#define FORM_ID_SORTCHANNEL LIST_SORT_CHANNEL
-#define FORM_ID_SORTDESC LIST_SORT_DESCRIPTION
-#define FORM_ID_SORTUSERS LIST_SORT_USERS
-
-#define FORM_ID_USERS 70
-#define FORM_ID_USER_ADD 71
-#define FORM_ID_USER_DELETE 72
-#define FORM_ID_USER_EDIT 73
-#define FORM_ID_USERLIST_START 2048
-
-#define FORM_ID_FILE 80
-#define FORM_ID_FILELIST_START 2048
-
-#define FORM_ID_BLOCKSIZE 90
-#define FORM_ID_DLPATH 91
-#define FORM_ID_ULPATH 92
-#define FORM_ID_DLACCEPT 93
-#define FORM_ID_DLDUPLICATES 94
-
-#define FORM_ID_DCCHOST 95
-#define FORM_ID_DCCPORTSTART 96
-#define FORM_ID_DCCPORTEND 97
-
-#define FORM_ID_TRANSFERSTOP 98
-#define FORM_ID_TRANSFERINFO 99
-#define FORM_ID_TRANSFERALLOW 100
-
-#define FORM_ID_CTCP_ON 110
-#define FORM_ID_CTCP_THROTTLE 111
-#define FORM_ID_CTCP_FINGER 112
-#define FORM_ID_CTCP_USERINFO 113
-
 static form *mainform = NULL;
-//static form *addform = NULL;
-//static form *editform = NULL;
-//static form *mainfavform = NULL;
-//static form *mainbanform = NULL;
+
+#define FORM_COLOR_MAIN make_color(configuration.form_color_fg, configuration.form_color_bg)
+#define FORM_COLOR_TEXTLINE make_color(configuration.formfield_color_fg, configuration.formfield_color_bg)
+#define FORM_COLOR_LIST make_color(configuration.formfield_color_fg, configuration.formfield_color_bg)
+#define FORM_COLOR_BUTTON make_color(configuration.formbutton_color_fg, configuration.formbutton_color_bg)
+#define FORM_COLOR_CHECKBOX make_color(configuration.form_color_fg, configuration.form_color_bg)
+
 
 /** form remove ****************************************************************************/
 
 int close_all_forms(){
-	//form = remove_form(form);
 	mainform = remove_form(mainform);
-	//addform = remove_form(addform);
-	//editform = remove_form(editform);
-	//mainfavform = remove_form(mainfavform);
-	//mainbanform = remove_form(mainbanform);
 	return(1);
 }
 
 /** new server connect *********************************************************************/
 
 
-int get_new_connect_info(int key, char *server, int *port){
+int get_new_connect_info(int key, char *server, int *port, char *password){
 	Fcomponent *comp;
 	Ftextline *textline;
 	static char portstr[32] = "6667";
 	static char serverstr[256] = "";
 	int event;
 
-	if (mainform == NULL) mainform = create_new_server_connect_form(serverstr, atol(portstr));
+	if (mainform == NULL) mainform = create_new_server_connect_form(serverstr, atol(portstr), password);
 
 	event = process_form_events(mainform, key);
 		
@@ -156,13 +88,17 @@ int get_new_connect_info(int key, char *server, int *port){
 	else if (event == FORM_ID_OK){
 		comp = form_component_by_id(mainform, FORM_ID_SERVER);
 		textline = comp->component;
-		strcpy(serverstr, Ftextline_buffer_contents(textline));
-		strcpy(server, serverstr);
+		strcpy(server, Ftextline_buffer_contents(textline));
 
 		comp = form_component_by_id(mainform, FORM_ID_PORT);
 		textline = comp->component;
 		strcpy(portstr, Ftextline_buffer_contents(textline));
 		*port = atoi(portstr);
+
+		comp = form_component_by_id(mainform, FORM_ID_PASSWORD);
+		textline = comp->component;
+		strcpy(password, Ftextline_buffer_contents(textline));
+
 		mainform = remove_form(mainform);
 		return(E_OK);
 	}
@@ -170,27 +106,29 @@ int get_new_connect_info(int key, char *server, int *port){
 	return(key);
 }
 
-form *create_new_server_connect_form(char *server, int port){
+form *create_new_server_connect_form(char *server, int port, char *password){
 	void *comp;
 	form *form;
 	char portstr[32];
 
-	form = add_form("Connect to Server", 0x000, -1, -1, 38, 9, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Connect to Server", 0x000, -1, -1, 38, 10, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Server", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		9, 4, 1024, 27, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);        
+	comp = (void *) add_Ftextline("Server", 2, 4, 11, 4, 1024, 25, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);        
 	set_Ftextline_buffer(comp, server);
 	add_form_component(form, comp, FORM_ID_SERVER, F_TEXTLINE);
 
-	comp = (void *) add_Ftextline("Port", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		9, 5, 5, 5, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM);
+	comp = (void *) add_Ftextline("Port", 2, 5, 11, 5, 5, 5, FORM_COLOR_TEXTLINE, 0, IN_NUM);
 	sprintf(portstr, "%d", port);
 	set_Ftextline_buffer(comp, portstr);
 	add_form_component(form, comp, FORM_ID_PORT, F_TEXTLINE);
 	
-	comp = (void *) add_Fbutton("Connect", 18, 7, 9, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Ftextline("Password", 2, 6, 11, 6, 1024, 25, FORM_COLOR_TEXTLINE, STYLE_MASK_TEXT, IN_LETTERS|IN_PUNCT);        
+	set_Ftextline_buffer(comp, password);
+	add_form_component(form, comp, FORM_ID_PASSWORD, F_TEXTLINE);
+
+	comp = (void *) add_Fbutton("Connect", 18, 8, 9, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 7, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 8, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -243,14 +181,11 @@ form *create_favorite_server_connect_form(){
 	config_server *server;
 
 	/* Server New Connect Form */
-	form = add_form("Server Favorites", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Server Favorites", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	//comp = (void *) add_Flist("Server                         Port", 2, 3, 2, 4, 36, 12, 1, 0, STYLE_TITLE);
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_SERVER, F_LIST);
 
-	// id is incremented every server line starting from FORM_ID_SERVERLIST_START
-	id = FORM_ID_SERVERLIST_START;
 	server = configuration.serverfavorite;
 	while (server != NULL){
 		strncpy(listline, server->name, 255);
@@ -261,14 +196,13 @@ form *create_favorite_server_connect_form(){
 		sprintf(portstr, "%d", server->port);
 		strncat(listline, portstr, 255);
  
-		add_Flistline(comp, id, listline, server, FORMLIST_LAST);
+		add_Flistline(comp, 0, listline, server, FORMLIST_LAST);
 		server = server->next;
-		id++;
 	}
 
-	comp = (void *) add_Fbutton("Connect", 20, 18, 9, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Connect", 20, 18, 9, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	print_form(form);
@@ -279,10 +213,6 @@ form *create_favorite_server_connect_form(){
 /** favorite server edit ********************************************************************/
 
 int edit_favorite_servers(int key){
-	//static form *mainform = NULL;
-	//static form *addform = NULL;
-	//static form *editform = NULL;
-	static int activeformA = 0;
 	int event;
 	Fcomponent *comp;
 	Flist *listline;
@@ -292,6 +222,7 @@ int edit_favorite_servers(int key){
 	static int activeform = 0;
 
 	char serverstr[256];
+	char passstr[256];
 	char portstr[32];
 	int port;
 
@@ -333,7 +264,7 @@ int edit_favorite_servers(int key){
 			edited = active_list_line_ptrid(listline);
 			mainform = remove_form(mainform);
 			if (edited != NULL){
-				mainform = create_change_favorite_server_form(edited->name, edited->port);
+				mainform = create_change_favorite_server_form(edited->name, edited->port, edited->password);
 				activeform = 2;
 			}
 			return(E_NOWAIT);
@@ -364,8 +295,12 @@ int edit_favorite_servers(int key){
 			strcpy(portstr, Ftextline_buffer_contents(textline));
 			port = atoi(portstr);
 
+			comp = form_component_by_id(mainform, FORM_ID_PASSWORD);
+			textline = comp->component;
+			strcpy(passstr, Ftextline_buffer_contents(textline));
+
 			if (!config_server_exists(&configuration, serverstr, port)){
-				add_config_server(&configuration, serverstr, port, LIST_ORDER_FRONT);
+				add_config_server(&configuration, serverstr, port, passstr, LIST_ORDER_FRONT);
 			}
 			/* destroy the main form so that it can be rebuilt and updated */
 			mainform = remove_form(mainform);
@@ -397,9 +332,14 @@ int edit_favorite_servers(int key){
 			strcpy(portstr, Ftextline_buffer_contents(textline));
 			port = atoi(portstr);
 
+			comp = form_component_by_id(mainform, FORM_ID_PASSWORD);
+			textline = comp->component;
+			strcpy(passstr, Ftextline_buffer_contents(textline));
+
 			/* now copy the changes into the config struct */
 			if (edited != NULL){
 				strcpy(edited->name, serverstr);
+				strcpy(edited->password, passstr);
 				edited->port = port;
 			}
 
@@ -424,9 +364,9 @@ form *create_edit_favorite_server_form(){
 	char portstr[64];
 	config_server *server;
 
-	form = add_form("Edit Server Favorites", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Edit Server Favorites", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_SERVER, F_LIST);
 
 	id = FORM_ID_SERVERLIST_START;
@@ -445,13 +385,13 @@ form *create_edit_favorite_server_form(){
 		id++;
 	}
 
-	comp = (void *) add_Fbutton("Add", 13, 18, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Add", 13, 18, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_SERVER_ADD, F_BUTTON);
-	comp = (void *) add_Fbutton("Del", 19, 18, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Del", 19, 18, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_SERVER_DELETE, F_BUTTON);
-	comp = (void *) add_Fbutton("Edit", 25, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Edit", 25, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_SERVER_EDIT, F_BUTTON);
-	comp = (void *) add_Fbutton("Done", 32, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Done", 32, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
 
 	return(form);
@@ -461,50 +401,51 @@ form *create_new_favorite_server_form(){
 	void *comp;
 	form *form;
 
-	form = add_form("Add Server Favorite", 0x000, -1, -1, 38, 9, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Add Server Favorite", 0x000, -1, -1, 38, 10, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Server", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		9, 4, 1024, 27, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
-        
-	add_form_component(form, comp, FORM_ID_SERVER, F_TEXTLINE);
+	comp = (void *) add_Ftextline("Server", 2, 4, 11, 4, 1024, 25, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
+        add_form_component(form, comp, FORM_ID_SERVER, F_TEXTLINE);
 
-	comp = (void *) add_Ftextline("Port", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		9, 5, 5, 5, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM);
-        
-	set_Ftextline_buffer(comp, "6667");
+	comp = (void *) add_Ftextline("Port", 2, 5, 11, 5, 5, 5, FORM_COLOR_TEXTLINE, 0, IN_NUM);
+       	set_Ftextline_buffer(comp, "6667");
 	add_form_component(form, comp, FORM_ID_PORT, F_TEXTLINE);
 	
-	comp = (void *) add_Fbutton("Add", 22, 7, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Ftextline("Password", 2, 6, 11, 6, 1024, 25, FORM_COLOR_TEXTLINE, STYLE_MASK_TEXT, IN_LETTERS|IN_PUNCT);        
+	add_form_component(form, comp, FORM_ID_PASSWORD, F_TEXTLINE);
+
+
+	comp = (void *) add_Fbutton("Add", 22, 8, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 7, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 8, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
 }
 
-form *create_change_favorite_server_form(char *server, int port){
+form *create_change_favorite_server_form(char *server, int port, char *password){
 	void *comp;
 	form *form;
 	char portstr[32];
 
-	form = add_form("Edit Server Favorite", 0x000, -1, -1, 38, 9, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Edit Server Favorite", 0x000, -1, -1, 38, 10, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Server", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		9, 4, 1024, 27, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
-        
+	comp = (void *) add_Ftextline("Server", 2, 4, 11, 4, 1024, 25, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	add_form_component(form, comp, FORM_ID_SERVER, F_TEXTLINE);
 	set_Ftextline_buffer(comp, server);
 
-	comp = (void *) add_Ftextline("Port", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		9, 5, 5, 5, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM);
-        
-	sprintf(portstr, "%d", port);
+	comp = (void *) add_Ftextline("Port", 2, 5, 11, 5, 5, 5, FORM_COLOR_TEXTLINE, 0, IN_NUM);
+        sprintf(portstr, "%d", port);
 	add_form_component(form, comp, FORM_ID_PORT, F_TEXTLINE);
 	set_Ftextline_buffer(comp, portstr);
 	
-	comp = (void *) add_Fbutton("OK", 21, 7, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Ftextline("Password", 2, 6, 11, 6, 1024, 25, FORM_COLOR_TEXTLINE, STYLE_MASK_TEXT, IN_LETTERS|IN_PUNCT);        
+	add_form_component(form, comp, FORM_ID_PASSWORD, F_TEXTLINE);
+	set_Ftextline_buffer(comp, password);
+
+
+	comp = (void *) add_Fbutton("OK", 21, 8, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 7, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 8, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -540,17 +481,16 @@ form *create_new_channel_join_form(){
 	void *comp;
 	form *form;
 
-	form = add_form("New Channel", 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("New Channel", 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Channel", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		10, 4, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Channel", 2, 4, 10, 4, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
         
 	set_Ftextline_buffer(comp, "#");
 	add_form_component(form, comp, FORM_ID_USER, F_TEXTLINE);
 
-	comp = (void *) add_Fbutton("Join", 21, 6, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Join", 21, 6, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -599,14 +539,11 @@ form *create_favorite_channel_join_form(){
 	char listline[256];
 	config_channel *channel;
 
-	form = add_form("Channel Favorites", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Channel Favorites", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	//comp = (void *) add_Flist("Channel                            ", 2, 3, 2, 4, 36, 12, 1, 0, STYLE_TITLE);
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_CHANNEL, F_LIST);
 
-	// id is incremented every server line starting from FORM_ID_SERVERLIST_START
-	id = FORM_ID_CHANNELLIST_START;
 	channel = configuration.channelfavorite;
 	while (channel != NULL){
 		strncpy(listline, channel->name, 255);
@@ -615,14 +552,13 @@ form *create_favorite_channel_join_form(){
 		for (; i < 31; i++) listline[i] = ' ';
 		listline[31] = 0;
  
-		add_Flistline(comp, id, listline, channel, FORMLIST_LAST);
+		add_Flistline(comp, 0, listline, channel, FORMLIST_LAST);
 		channel = channel->next;
-		id++;
 	}
 
-	comp = (void *) add_Fbutton("Join", 23, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Join", 23, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	print_form(form);
@@ -633,9 +569,6 @@ form *create_favorite_channel_join_form(){
 
 
 int edit_favorite_channels(int key){
-	//static form *mainform = NULL;
-	//static form *addform = NULL;
-	//static form *editform = NULL;
 	static int activeform = 0;
 	int event;
 	Fcomponent *comp;
@@ -760,27 +693,25 @@ form *create_edit_favorite_channel_form(){
 	char listline[256];
 	config_channel *channel;
 
-	form = add_form("Edit Channel Favorites", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Edit Channel Favorites", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_CHANNEL, F_LIST);
 
-	id = FORM_ID_CHANNELLIST_START;
 	channel = configuration.channelfavorite;
 	while (channel != NULL){
 		strncpy(listline, channel->name, 255);
-		add_Flistline(comp, id, listline, channel, FORMLIST_LAST);
+		add_Flistline(comp, 0, listline, channel, FORMLIST_LAST);
 		channel = channel->next;
-		id++;
 	}
 
-	comp = (void *) add_Fbutton("Add", 13, 18, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Add", 13, 18, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CHANNEL_ADD, F_BUTTON);
-	comp = (void *) add_Fbutton("Del", 19, 18, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Del", 19, 18, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CHANNEL_DELETE, F_BUTTON);
-	comp = (void *) add_Fbutton("Edit", 25, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Edit", 25, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CHANNEL_EDIT, F_BUTTON);
-	comp = (void *) add_Fbutton("Done", 32, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Done", 32, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
 
 	return(form);
@@ -790,16 +721,15 @@ form *create_new_favorite_channel_form(){
 	void *comp;
 	form *form;
 
-	form = add_form("Add Channel Favorite", 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Add Channel Favorite", 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Channel", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		10, 4, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Channel", 2, 4, 10, 4, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	set_Ftextline_buffer(comp, "#");        
 	add_form_component(form, comp, FORM_ID_CHANNEL, F_TEXTLINE);
 
-	comp = (void *) add_Fbutton("Add", 22, 6, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Add", 22, 6, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -809,17 +739,16 @@ form *create_change_favorite_channel_form(char *channel){
 	void *comp;
 	form *form;
 
-	form = add_form("Edit Channel Favorite", 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Edit Channel Favorite", 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Channel", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		10, 4, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Channel", 2, 4, 10, 4, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
         
 	add_form_component(form, comp, FORM_ID_CHANNEL, F_TEXTLINE);
 	set_Ftextline_buffer(comp, channel);
 	
-	comp = (void *) add_Fbutton("OK", 21, 6, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 21, 6, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -856,17 +785,15 @@ form *create_new_chat_form(){
 	void *comp;
 	form *form;
 
-	form = add_form("New Chat", 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("New Chat", 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Nick", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		7, 4, 1024, 29, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
-        
+	comp = (void *) add_Ftextline("Nick", 2, 4, 7, 4, 1024, 29, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	set_Ftextline_buffer(comp, "");
 	add_form_component(form, comp, FORM_ID_USER, F_TEXTLINE);
 
-	comp = (void *) add_Fbutton("Chat", 21, 6, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Chat", 21, 6, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -915,13 +842,11 @@ form *create_favorite_chat_form(){
 	char listline[256];
 	config_user *user;
 
-	form = add_form("User Favorites", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("User Favorites", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_USER, F_LIST);
 
-	// id is incremented every line starting from FORM_ID_USERLIST_START
-	id = FORM_ID_USERLIST_START;
 	user = configuration.userfavorite;
 	while (user != NULL){
 		strncpy(listline, user->name, 255);
@@ -930,14 +855,13 @@ form *create_favorite_chat_form(){
 		for (; i < 31; i++) listline[i] = ' ';
 		listline[31] = 0;
  
-		add_Flistline(comp, id, listline, user, FORMLIST_LAST);
+		add_Flistline(comp, 0, listline, user, FORMLIST_LAST);
 		user = user->next;
-		id++;
 	}
 
-	comp = (void *) add_Fbutton("Chat", 23, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Chat", 23, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
 
 	print_form(form);
@@ -974,17 +898,15 @@ form *create_new_dccchat_form(){
 	void *comp;
 	form *form;
 
-	form = add_form("New DCC Chat", 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("New DCC Chat", 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Nick", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		7, 4, 1024, 29, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
-        
-	set_Ftextline_buffer(comp, "");
+	comp = (void *) add_Ftextline("Nick", 2, 4, 7, 4, 1024, 29, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
+        set_Ftextline_buffer(comp, "");
 	add_form_component(form, comp, FORM_ID_USER, F_TEXTLINE);
 
-	comp = (void *) add_Fbutton("Chat", 21, 6, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Chat", 21, 6, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -993,7 +915,6 @@ form *create_new_dccchat_form(){
 /** favorite user dcc_chat  ****************************************************************/
 
 int get_favorite_user_dccchat_info(int key, char *user){
-	//static form *form = NULL;
 	int event;
 	Fcomponent *comp;
 	Flist *listline;
@@ -1032,13 +953,11 @@ form *create_favorite_dccchat_form(){
 	char listline[256];
 	config_user *user;
 
-	form = add_form("User Favorites", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("User Favorites", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_USER, F_LIST);
 
-	// id is incremented every line starting from FORM_ID_USERLIST_START
-	id = FORM_ID_USERLIST_START;
 	user = configuration.userfavorite;
 	while (user != NULL){
 		strncpy(listline, user->name, 255);
@@ -1047,14 +966,13 @@ form *create_favorite_dccchat_form(){
 		for (; i < 31; i++) listline[i] = ' ';
 		listline[31] = 0;
  
-		add_Flistline(comp, id, listline, user, FORMLIST_LAST);
+		add_Flistline(comp, 0, listline, user, FORMLIST_LAST);
 		user = user->next;
-		id++;
 	}
 
-	comp = (void *) add_Fbutton("Chat", 23, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Chat", 23, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
 
 	print_form(form);
@@ -1064,7 +982,6 @@ form *create_favorite_dccchat_form(){
 /** new dcc send *********************************************************************/
 
 int get_new_dccsend_info(int key, char *user){
-	//static form *form = NULL;
 	Fcomponent *comp;
 	Ftextline *textline;
 	int event;
@@ -1091,17 +1008,15 @@ form *create_new_dccsend_form(){
 	void *comp;
 	form *form;
 
-	form = add_form("Send DCC File", 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Send DCC File", 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Nick", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		7, 4, 1024, 29, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
-        
-	set_Ftextline_buffer(comp, "");
+	comp = (void *) add_Ftextline("Nick", 2, 4, 7, 4, 1024, 29, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
+        set_Ftextline_buffer(comp, "");
 	add_form_component(form, comp, FORM_ID_USER, F_TEXTLINE);
 
-	comp = (void *) add_Fbutton("Select File", 14, 6, 13, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Select File", 14, 6, 13, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -1110,7 +1025,6 @@ form *create_new_dccsend_form(){
 /** favorite user dcc send  ****************************************************************/
 
 int get_favorite_user_dccsend_info(int key, char *user){
-	//static form *form = NULL;
 	int event;
 	Fcomponent *comp;
 	Flist *listline;
@@ -1137,7 +1051,7 @@ int get_favorite_user_dccsend_info(int key, char *user){
 		}
 		else return(E_CANCEL);
 	}
-	else if (event == KEY_ENTER || event == 10) process_form_events(mainform, E_NEXT);		
+	else if (event == KEY_ENTER || event == 10) process_form_events(mainform, E_NEXT);
 	print_form(mainform);
 	return(key);
 }
@@ -1149,9 +1063,9 @@ form *create_favorite_dccsend_form(){
 	char listline[256];
 	config_user *user;
 
-	form = add_form("User Favorites", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("User Favorites", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_USER, F_LIST);
 
 	// id is incremented every line starting from FORM_ID_USERLIST_START
@@ -1170,10 +1084,10 @@ form *create_favorite_dccsend_form(){
 	}
 
 
-	comp = (void *) add_Fbutton("Select File", 16, 18, 13, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Select File", 16, 18, 13, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
 
-	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
 
 	print_form(form);
@@ -1183,11 +1097,6 @@ form *create_favorite_dccsend_form(){
 /** edit favorite / banned users edit ***********************************************************************/
 
 int edit_users(int key, int listnum){
-	//static form *mainform = NULL;
-	//static form *mainfavform = NULL;
-	//static form *mainbanform = NULL;
-	//static form *addform = NULL;
-	//static form *editform = NULL;
 	static int activeform = 0;
 	int id, event;
 	Fcomponent *comp;
@@ -1323,9 +1232,9 @@ form *create_edit_user_form(char *title, config_user *userlist){
 	char listline[256];
 	config_user *user;
 
-	form = add_form(title, 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form(title, 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_USER, F_LIST);
 
 	id = FORM_ID_USERLIST_START;
@@ -1337,13 +1246,13 @@ form *create_edit_user_form(char *title, config_user *userlist){
 		id++;
 	}
 
-	comp = (void *) add_Fbutton("Add", 13, 18, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Add", 13, 18, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_USER_ADD, F_BUTTON);
-	comp = (void *) add_Fbutton("Del", 19, 18, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Del", 19, 18, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_USER_DELETE, F_BUTTON);
-	comp = (void *) add_Fbutton("Edit", 25, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Edit", 25, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_USER_EDIT, F_BUTTON);
-	comp = (void *) add_Fbutton("Done", 32, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Done", 32, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
 
 	return(form);
@@ -1353,16 +1262,15 @@ form *create_new_user_form(char *title){
 	void *comp;
 	form *form;
 
-	form = add_form(title, 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form(title, 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Nick", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		7, 4, 1024, 29, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Nick", 2, 4, 7, 4, 1024, 29, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
        	add_form_component(form, comp, FORM_ID_USER, F_TEXTLINE);
 	set_Ftextline_buffer(comp, "");
 
-	comp = (void *) add_Fbutton("Add", 22, 6, 5, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Add", 22, 6, 5, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -1372,16 +1280,15 @@ form *create_change_user_form(char *title, char *user){
 	void *comp;
 	form *form;
 
-	form = add_form(title , 0x000, -1, -1, 38, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form(title , 0x000, -1, -1, 38, 8, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Nick", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		10, 4, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT); 
+	comp = (void *) add_Ftextline("Nick", 2, 4, 10, 4, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT); 
 	add_form_component(form, comp, FORM_ID_USER, F_TEXTLINE);
 	set_Ftextline_buffer(comp, user);
 	
-	comp = (void *) add_Fbutton("OK", 21, 6, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 21, 6, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 6, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -1390,7 +1297,6 @@ form *create_change_user_form(char *title, char *user){
 /**  list view options  ***************************************************************************/
 
 int get_list_view_options(int key, char *searchstr, int *minuser, int *maxuser, int *searchtype){
-	//static form *form = NULL;
 	Fcomponent *comp;
 	Ftextline *textline;
 	Fcheckbox_array *array;
@@ -1436,33 +1342,30 @@ form *create_list_view_form(){
 	Fcheckbox *box;
 	int i;
 
-	form = add_form("List View Options", 0x000, -1, -1, 40, 12, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("List View Options", 0x000, -1, -1, 40, 12, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Search for", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		14, 4, 1024, 24, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Search for", 2, 4, 14, 4, 1024, 24, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	add_form_component(form, comp, FORM_ID_SEARCH, F_TEXTLINE);
 
-	comp = (void *) add_Ftextline("Users >", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		14, 5, 8, 7, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM); 
+	comp = (void *) add_Ftextline("Users >", 2, 5, 14, 5, 8, 7, FORM_COLOR_TEXTLINE, 0, IN_NUM); 
 	add_form_component(form, comp, FORM_ID_USERSMORE, F_TEXTLINE);
 
-	comp = (void *) add_Ftextline("Users <", 2, 6, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		14, 6, 8, 7, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM);
+	comp = (void *) add_Ftextline("Users <", 2, 6, 14, 6, 8, 7, FORM_COLOR_TEXTLINE, 0, IN_NUM);
        	add_form_component(form, comp, FORM_ID_USERSLESS, F_TEXTLINE);
 
 
-	comp = (void *) add_Fcheckbox_array("Sort by:", 2, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), 0);
+	comp = (void *) add_Fcheckbox_array("Sort by:", 2, 8, FORM_COLOR_CHECKBOX, 0);
 	add_form_component(form, comp, FORM_ID_SORT, F_CHECKBOX_ARRAY);
 
-	box = add_Fcheckbox("Channel", 23, 8, 14, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("Channel", 23, 8, 14, 8, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, FORM_ID_SORTCHANNEL, box);
 
-	box = add_Fcheckbox("Users", 34, 8, 27, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("Users", 34, 8, 27, 8, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, FORM_ID_SORTUSERS, box);
 
-	comp = (void *) add_Fbutton("OK", 23, 10, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 23, 10, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 10, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 10, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -1472,7 +1375,6 @@ form *create_list_view_form(){
 /**  channel select options  ***************************************************************************/
 
 int get_channel_select_options(int key){
-	//static form *form = NULL;
 	Fcomponent *comp;
 	Ftextline *textline;
 	Fcheckbox *checkbox;
@@ -1505,13 +1407,13 @@ form *create_channel_select_form(){
 	form *form;
 	int i;
 
-	form = add_form("Channel", 0x000, -1, -1, 38, 7, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Channel", 0x000, -1, -1, 38, 7, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Fbutton("Join", 2, 4, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Join", 2, 4, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Add to Favorites", 9, 4, 18, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Add to Favorites", 9, 4, 18, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CHANNEL_ADD, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 4, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 4, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -1521,7 +1423,6 @@ form *create_channel_select_form(){
 /** transfer select options  ***************************************************************************/
 
 int get_transfer_select_options(int key){
-	//static form *form = NULL;
 	Fcomponent *comp;
 	Ftextline *textline;
 	Fcheckbox *checkbox;
@@ -1529,12 +1430,12 @@ int get_transfer_select_options(int key){
 	int ret;
 
 	if (mainform == NULL){
-		mainform = add_form("Transfer", 0x000, -1, -1, 34, 7, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);        
-		comp = (void *) add_Fbutton("Information", 2, 4, 13, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+		mainform = add_form("Transfer", 0x000, -1, -1, 34, 7, FORM_COLOR_MAIN, STYLE_TITLE);        
+		comp = (void *) add_Fbutton("Information", 2, 4, 13, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, FORM_ID_TRANSFERINFO, F_BUTTON);
-		comp = (void *) add_Fbutton("Cancel", 16, 4, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+		comp = (void *) add_Fbutton("Cancel", 16, 4, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, FORM_ID_CANCEL, F_BUTTON);
-		comp = (void *) add_Fbutton("Abort", 25, 4, 7, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+		comp = (void *) add_Fbutton("Abort", 25, 4, 7, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, FORM_ID_TRANSFERSTOP, F_BUTTON);
 	}	
 
@@ -1574,8 +1475,8 @@ int get_transfer_info(int key, dcc_file *F){
 	if (mainform == NULL){
 		addr.s_addr = htonl(F->hostip);
 
-		mainform = add_form("Transfer Info", 0x000, -1, -1, 38, 12, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);        
-		comp = (void *) add_Fbutton("OK", 16, 10, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+		mainform = add_form("Transfer Info", 0x000, -1, -1, 38, 12, FORM_COLOR_MAIN, STYLE_TITLE);        
+		comp = (void *) add_Fbutton("OK", 16, 10, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, FORM_ID_OK, F_BUTTON);
 
 		/* precalculate the timestamps */		
@@ -1629,10 +1530,10 @@ int allow_transfer(int key, dcc_file *F){
 	if (mainform == NULL){
 		addr.s_addr = htonl(F->hostip);
 
-		mainform = add_form("Incoming File", 0x000, -1, -1, 32, 9, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
-		comp = (void *) add_Fbutton("Allow", 6, 7, 9, 1, 0, E_OK, STYLE_CENTER_JUSTIFY);
+		mainform = add_form("Incoming File", 0x000, -1, -1, 32, 9, FORM_COLOR_MAIN, STYLE_TITLE);
+		comp = (void *) add_Fbutton("Allow", 6, 7, 9, FORM_COLOR_BUTTON, E_OK, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_OK, F_BUTTON);
-		comp = (void *) add_Fbutton("Deny", 18, 7, 8, 1, 0, E_CANCEL, STYLE_CENTER_JUSTIFY);
+		comp = (void *) add_Fbutton("Deny", 18, 7, 8, FORM_COLOR_BUTTON, E_CANCEL, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_CANCEL, F_BUTTON);
 
 		sprintf(scratch, "From  : %s\nFile  : %s\nIP    : %s\n", F->nick, F->filename, inet_ntoa(addr));
@@ -1663,8 +1564,8 @@ int view_about(int key){
         int revent;
                 
 	if (mainform == NULL){
-		mainform = add_form("About", 0x000, -1, -1, 40, 9, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
-		comp = (void *) add_Fbutton("OK", 16, 7, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+		mainform = add_form("About", 0x000, -1, -1, 40, 9, FORM_COLOR_MAIN, STYLE_TITLE);
+		comp = (void *) add_Fbutton("OK", 16, 7, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_OK, F_BUTTON);
 		text = add_Ftextarea("Version", 2, 3, 36, 4, STYLE_CENTER_JUSTIFY, -1, 
 			CODE_NAME"\nVersion "CODE_VERSION" "CODE_STATE" "CODE_BUILD"\nCopyright (C) "CODE_COPYRIGHT", "CODE_DEVELOPER);
@@ -1690,7 +1591,7 @@ int view_screen_size_warning(int key){
                 
 	if (mainform == NULL){
 		sprintf(buffer, "This program requires\na window larger than %dx%d.\nPlease resize the window.", MINWINDOWWIDTH, MINWINDOWHEIGHT);
-		mainform = add_form("Window Size ", 0x000, -1, -1, 32, 7, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+		mainform = add_form("Window Size ", 0x000, -1, -1, 32, 7, FORM_COLOR_MAIN, STYLE_TITLE);
 		text = add_Ftextarea("Warning", 2, 3, 36, 4, STYLE_CENTER_JUSTIFY, -1, buffer);  
 		add_form_textarea (mainform, text);
 	}
@@ -1710,20 +1611,20 @@ int end_run(int key){
         int revent;
                
 	if (mainform == NULL && configuration.autosave == 0 && configuration.changed == 1){
-		mainform = add_form("Exit and Save Settings", 0x000, -1, -1, 39, 6, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
-		comp = (void *) add_Fbutton("Exit&Save", 2, 4, 11, 1, 0, E_EXIT_AND_SAVE, STYLE_CENTER_JUSTIFY);
+		mainform = add_form("Exit and Save Settings", 0x000, -1, -1, 39, 6, FORM_COLOR_MAIN, STYLE_TITLE);
+		comp = (void *) add_Fbutton("Exit&Save", 2, 4, 11, FORM_COLOR_BUTTON, E_EXIT_AND_SAVE, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_EXIT_AND_SAVE, F_BUTTON);
-		comp = (void *) add_Fbutton("Exit&Discard", 14, 4, 14, 1, 0, E_EXIT, STYLE_CENTER_JUSTIFY);
+		comp = (void *) add_Fbutton("Exit&Discard", 14, 4, 14, FORM_COLOR_BUTTON, E_EXIT, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_EXIT, F_BUTTON);
-		comp = (void *) add_Fbutton("Cancel", 29, 4, 8, 1, 0, E_CANCEL, STYLE_CENTER_JUSTIFY);
+		comp = (void *) add_Fbutton("Cancel", 29, 4, 8, FORM_COLOR_BUTTON, E_CANCEL, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_CANCEL, F_BUTTON);
 	}
 
 	else if (mainform == NULL){
-		mainform = add_form("Exit", 0x000, -1, -1, 22, 6, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
-		comp = (void *) add_Fbutton("Exit", 2, 4, 8, 1, 0, E_EXIT, STYLE_CENTER_JUSTIFY);
+		mainform = add_form("Exit", 0x000, -1, -1, 22, 6, FORM_COLOR_MAIN, STYLE_TITLE);
+		comp = (void *) add_Fbutton("Exit", 2, 4, 8, FORM_COLOR_BUTTON, E_EXIT, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_EXIT, F_BUTTON);
-		comp = (void *) add_Fbutton("Cancel", 12, 4, 8, 1, 0, E_CANCEL, STYLE_CENTER_JUSTIFY);
+		comp = (void *) add_Fbutton("Cancel", 12, 4, 8, FORM_COLOR_BUTTON, E_CANCEL, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_CANCEL, F_BUTTON);
 	}
 
@@ -1820,7 +1721,6 @@ int get_identity_info(int key){
 	return(key);
 }
 
-
 form *create_identity_form(char *nick, char *altnick, char *name, char *user, char *host, char *domain, char *mode){
 	void *comp;
 	form *form;
@@ -1829,35 +1729,29 @@ form *create_identity_form(char *nick, char *altnick, char *name, char *user, ch
 	int modes = 0;
 	int i;
 
-	form = add_form("Identity", 0x000, -1, -1, 40, 17, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Identity", 0x000, -1, -1, 40, 17, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Nick", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 4, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Nick", 2, 4, 12, 4, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	add_form_component(form, comp, FORM_ID_NICK, F_TEXTLINE);
 	set_Ftextline_buffer(comp, nick);
 
-	comp = (void *) add_Ftextline("Alt Nick", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 5, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT); 
+	comp = (void *) add_Ftextline("Alt Nick", 2, 5, 12, 5, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT); 
 	add_form_component(form, comp, FORM_ID_ALTNICK, F_TEXTLINE);
 	set_Ftextline_buffer(comp, altnick);
 
-	comp = (void *) add_Ftextline("Name", 2, 6, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 6, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT|IN_BLANK);
+	comp = (void *) add_Ftextline("Name", 2, 6, 12, 6, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT|IN_BLANK);
        	add_form_component(form, comp, FORM_ID_NAME, F_TEXTLINE);
 	set_Ftextline_buffer(comp, name);
 
-	comp = (void *) add_Ftextline("User", 2, 7, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 7, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("User", 2, 7, 12, 7, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
        	add_form_component(form, comp, FORM_ID_USER, F_TEXTLINE);
 	set_Ftextline_buffer(comp, user);
 
-	comp = (void *) add_Ftextline("Host", 2, 8, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 8, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Host", 2, 8, 12, 8, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
        	add_form_component(form, comp, FORM_ID_HOST, F_TEXTLINE);
 	set_Ftextline_buffer(comp, host);
 
-	comp = (void *) add_Ftextline("Domain", 2, 9, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 9, 1024, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Domain", 2, 9, 12, 9, 1024, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
        	add_form_component(form, comp, FORM_ID_DOMAIN, F_TEXTLINE);
 	set_Ftextline_buffer(comp, domain);
 
@@ -1867,30 +1761,21 @@ form *create_identity_form(char *nick, char *altnick, char *name, char *user, ch
 		else if (mode[i] == 's') modes = 1;
 	}
 
-	comp = (void *) add_Fcheckbox("Invisible Mode (+i)", 27, 11, 2, 11, COLOR_PAIR(F_BLUE*16+F_WHITE), 
-		STYLE_CHECKBOX_STAR);
+	comp = (void *) add_Fcheckbox("Invisible Mode (+i)", 27, 11, 2, 11, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_form_component(form, comp, FORM_ID_MODE_I, F_CHECKBOX);
 	set_Fcheckbox_value(comp, modei);
 
-	comp = (void *) add_Fcheckbox("Server Notices (+s)", 27, 12, 2, 12, COLOR_PAIR(F_BLUE*16+F_WHITE), 
-		STYLE_CHECKBOX_STAR);
+	comp = (void *) add_Fcheckbox("Server Notices (+s)", 27, 12, 2, 12, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_form_component(form, comp, FORM_ID_MODE_S, F_CHECKBOX);
 	set_Fcheckbox_value(comp, modes);
 
-	comp = (void *) add_Fcheckbox("Wallops (+w)", 27, 13, 2, 13, COLOR_PAIR(F_BLUE*16+F_WHITE), 
-		STYLE_CHECKBOX_STAR);
+	comp = (void *) add_Fcheckbox("Wallops (+w)", 27, 13, 2, 13, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_form_component(form, comp, FORM_ID_MODE_W, F_CHECKBOX);
 	set_Fcheckbox_value(comp, modew);
 
-	/*
-	comp = (void *) add_Fcheckbox("Deaf in Channels (+d)", 27, 14, 2, 14, COLOR_PAIR(F_BLUE*16+F_WHITE), 
-		STYLE_CHECKBOX_STAR);
-	add_form_component(form, comp, FORM_ID_MODE_D, F_CHECKBOX);
-	*/
-
-	comp = (void *) add_Fbutton("OK", 23, 15, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 23, 15, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 15, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 15, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -1899,7 +1784,6 @@ form *create_identity_form(char *nick, char *altnick, char *name, char *user, ch
 /** ctcp options ***************************************************************************/
 
 int get_ctcp_info(int key){
-	//static form *form = NULL;
 	Fcomponent *comp;
 	Ftextline *textline;
 	Fcheckbox *checkbox;
@@ -1951,32 +1835,29 @@ form *create_ctcp_form(int status, int throttle, char *finger, char *userinfo){
 	form *form;
 	char scratch[32];
 
-	form = add_form("CTCP Options", 0x000, -1, -1, 40, 12, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("CTCP Options", 0x000, -1, -1, 40, 12, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	comp = (void *) add_Fcheckbox("Respond to CTCP", 36, 4, 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE), 
+	comp = (void *) add_Fcheckbox("Respond to CTCP", 36, 4, 2, 4, FORM_COLOR_CHECKBOX, 
 		STYLE_CHECKBOX_STAR);
 	add_form_component(form, comp, FORM_ID_CTCP_ON, F_CHECKBOX);
 	set_Fcheckbox_value(comp, 1);
 
-	comp = (void *) add_Ftextline("Throttle", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		34, 5, 3, 4, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM);
+	comp = (void *) add_Ftextline("Throttle", 2, 5, 34, 5, 3, 4, FORM_COLOR_TEXTLINE, 0, IN_NUM);
 	add_form_component(form, comp, FORM_ID_CTCP_THROTTLE, F_TEXTLINE);
 	sprintf(scratch, "%d", throttle);
 	set_Ftextline_buffer(comp, scratch);
 
-	comp = (void *) add_Ftextline("Finger", 2, 7, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 7, MAXDESCLEN, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT|IN_BLANK);
+	comp = (void *) add_Ftextline("Finger", 2, 7, 12, 7, MAXDESCLEN, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT|IN_BLANK);
 	add_form_component(form, comp, FORM_ID_CTCP_FINGER, F_TEXTLINE);
 	set_Ftextline_buffer(comp, finger);
 
-	comp = (void *) add_Ftextline("UserInfo", 2, 8, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		12, 8, MAXDESCLEN, 26, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT|IN_BLANK); 
+	comp = (void *) add_Ftextline("UserInfo", 2, 8, 12, 8, MAXDESCLEN, 26, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT|IN_BLANK); 
 	add_form_component(form, comp, FORM_ID_CTCP_USERINFO, F_TEXTLINE);
 	set_Ftextline_buffer(comp, userinfo);
 
-	comp = (void *) add_Fbutton("OK", 23, 10, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 23, 10, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 10, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 10, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -2024,28 +1905,25 @@ form *create_dcc_form(char *hostname, int startport, int endport){
 	form *form;
 	char portstrbuf[16];
 
-	form = add_form("DCC Options", 0x000, -1, -1, 38, 10, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("DCC Options", 0x000, -1, -1, 38, 10, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Ftextline("Hostname", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		13, 4, 1024, 23, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Hostname", 2, 4, 13, 4, 1024, 23, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
        	set_Ftextline_buffer(comp, hostname);
 	add_form_component(form, comp, FORM_ID_DCCHOST, F_TEXTLINE);
 
-	comp = (void *) add_Ftextline("Port Start", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		30, 5, 5, 6, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM);
+	comp = (void *) add_Ftextline("Port Start", 2, 5, 30, 5, 5, 6, FORM_COLOR_TEXTLINE, 0, IN_NUM);
 	sprintf(portstrbuf, "%5d", startport);
 	set_Ftextline_buffer(comp, portstrbuf);
 	add_form_component(form, comp, FORM_ID_DCCPORTSTART, F_TEXTLINE);
 
-	comp = (void *) add_Ftextline("Port End", 2, 6, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		30, 6, 5, 6, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_NUM);
+	comp = (void *) add_Ftextline("Port End", 2, 6, 30, 6, 5, 6, FORM_COLOR_TEXTLINE, 0, IN_NUM);
 	sprintf(portstrbuf, "%5d", endport);
 	set_Ftextline_buffer(comp, portstrbuf);
 	add_form_component(form, comp, FORM_ID_DCCPORTEND, F_TEXTLINE);
 
-	comp = (void *) add_Fbutton("OK", 21, 8, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 21, 8, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 28, 8, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 28, 8, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -2112,67 +1990,65 @@ form *create_dcc_send_form(char *dlpath, char *ulpath, int blocksize, int accept
 	Fcheckbox *box;
 	int i;
 
-	form = add_form("DCC Send Options", 0x000, -1, -1, 40, 21, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("DCC Send Options", 0x000, -1, -1, 40, 21, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	comp = (void *) add_Ftextline("DL Path", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		11, 4, 1024, 27, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("DL Path", 2, 4, 11, 4, 1024, 27, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	add_form_component(form, comp, FORM_ID_DLPATH, F_TEXTLINE);
 	set_Ftextline_buffer(comp, dlpath);
 
-	comp = (void *) add_Ftextline("UL Path", 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		11, 5, 1024, 27, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT); 
+	comp = (void *) add_Ftextline("UL Path", 2, 5, 11, 5, 1024, 27, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT); 
 	add_form_component(form, comp, FORM_ID_ULPATH, F_TEXTLINE);
 	set_Ftextline_buffer(comp, ulpath);
 
 
-	comp = (void *) add_Fcheckbox_array("DCC Block Size", 2, 7, COLOR_PAIR(F_BLUE*16+F_WHITE), 0);
+	comp = (void *) add_Fcheckbox_array("DCC Block Size", 2, 7, FORM_COLOR_CHECKBOX, 0);
 	add_form_component(form, comp, FORM_ID_BLOCKSIZE, F_CHECKBOX_ARRAY);
 
-	box = add_Fcheckbox("256", 36, 7, 27, 7, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("256", 36, 7, 27, 7, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 256, box);
 
-	box = add_Fcheckbox("512", 36, 8, 27, 8, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("512", 36, 8, 27, 8, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 512, box);
 
-	box = add_Fcheckbox("1024", 36, 9, 27, 9, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("1024", 36, 9, 27, 9, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 1024, box);
 
-	box = add_Fcheckbox("2048", 36, 10, 27, 10, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("2048", 36, 10, 27, 10, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 2048, box);
 
-	box = add_Fcheckbox("4096", 36, 11, 27, 11, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("4096", 36, 11, 27, 11, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 4096, box);
 
 	Fcheckbox_array_select_by_id((Fcheckbox_array *)comp, blocksize);
 
 
-	comp = (void *) add_Fcheckbox_array("Accept Downloads", 2, 13, COLOR_PAIR(F_BLUE*16+F_WHITE), 0);
+	comp = (void *) add_Fcheckbox_array("Accept Downloads", 2, 13, FORM_COLOR_CHECKBOX, 0);
 	add_form_component(form, comp, FORM_ID_DLACCEPT, F_CHECKBOX_ARRAY);
 
-	box = add_Fcheckbox("Auto", 36, 13, 27, 13, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("Auto", 36, 13, 27, 13, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 1, box);
 
-	box = add_Fcheckbox("Ask", 36, 14, 27, 14, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("Ask", 36, 14, 27, 14, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 0, box);
 
 	Fcheckbox_array_select_by_id((Fcheckbox_array *)comp, accept);
 
 
-	comp = (void *) add_Fcheckbox_array("Duplicates", 2, 16, COLOR_PAIR(F_BLUE*16+F_WHITE), 0);
+	comp = (void *) add_Fcheckbox_array("Duplicates", 2, 16, FORM_COLOR_CHECKBOX, 0);
 	add_form_component(form, comp, FORM_ID_DLDUPLICATES, F_CHECKBOX_ARRAY);
 
-	box = add_Fcheckbox("Rename", 36, 16, 27, 16, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("Rename", 36, 16, 27, 16, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 1, box);
 
-	box = add_Fcheckbox("Replace", 36, 17, 27, 17, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CHECKBOX_STAR);
+	box = add_Fcheckbox("Replace", 36, 17, 27, 17, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
 	add_Fcheckbox_to_array((Fcheckbox_array *)comp, 0, box);
 
 	Fcheckbox_array_select_by_id((Fcheckbox_array *)comp, duplicates);
 
 
-	comp = (void *) add_Fbutton("OK", 23, 19, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 23, 19, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 19, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 19, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
@@ -2181,7 +2057,6 @@ form *create_dcc_send_form(char *dlpath, char *ulpath, int blocksize, int accept
 /** client options ***************************************************************************/
 
 int get_client_options(int key){
-	//static form *form = NULL;
 	int event;
 	Fcomponent *comp;
 	Ftextline *textline;
@@ -2224,25 +2099,307 @@ form *create_client_options_form(int timeout, int autosave){
 	int i;
 	char temp[256];
 
-	form = add_form("Client Options", 0x000, -1, -1, 40, 9, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Client Options", 0x000, -1, -1, 40, 9, FORM_COLOR_MAIN, STYLE_TITLE);
 
 	sprintf(temp, "%d", timeout);        
-	comp = (void *) add_Ftextline("Server Connect Timeout", 2, 4, COLOR_PAIR(F_BLUE*16+F_WHITE),
-		35, 4, 2, 3, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_CURSOR_DARK, IN_LETTERS|IN_PUNCT);
+	comp = (void *) add_Ftextline("Server Connect Timeout", 2, 4, 35, 4, 2, 3, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	add_form_component(form, comp, FORM_ID_CONNECT_TIMEOUT, F_TEXTLINE);
 	set_Ftextline_buffer(comp, temp);
 
-	comp = (void *) add_Fcheckbox("Autosave Configuration", 36, 5, 2, 5, COLOR_PAIR(F_BLUE*16+F_WHITE), 0);
+	comp = (void *) add_Fcheckbox("Autosave Configuration", 36, 5, 2, 5, FORM_COLOR_CHECKBOX, 0);
 	add_form_component(form, comp, FORM_ID_AUTOSAVE, F_CHECKBOX);
 	if (autosave) set_Fcheckbox_value(comp, 1);
 
-	comp = (void *) add_Fbutton("OK", 23, 7, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 23, 7, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 7, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 7, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);
 }
+
+/** color options ***************************************************************************/
+
+int get_color_info(int key){
+	int event, id;
+	Fcomponent *comp;
+	Ftextline *textline;
+	Fcheckbox *checkbox;
+
+	if (mainform == NULL){
+		mainform = create_color_options_form();
+	}
+
+	event = process_form_events(mainform, key);
+
+	if (event == FORM_ID_CANCEL){
+		mainform = remove_form(mainform);
+		return(E_CANCEL);
+	}   
+
+	if (event == FORM_ID_RESET){
+		configuration.menu_color_fg = DEFAULT_MENU_COLOR_F;
+		configuration.menu_color_bg = DEFAULT_MENU_COLOR_B;
+		configuration.form_color_fg = DEFAULT_FORM_COLOR_F;
+		configuration.form_color_bg = DEFAULT_FORM_COLOR_B;
+		configuration.formfield_color_fg = DEFAULT_FORMFIELD_COLOR_F;
+		configuration.formfield_color_bg = DEFAULT_FORMFIELD_COLOR_B;
+		configuration.formbutton_color_fg = DEFAULT_FORMBUTTON_COLOR_F;
+		configuration.formbutton_color_bg = DEFAULT_FORMBUTTON_COLOR_B;
+
+		configuration.win_color_fg = DEFAULT_WIN_COLOR_F;
+		configuration.win_color_bg = DEFAULT_WIN_COLOR_B;
+
+		configuration.message_color = DEFAULT_MESSAGE_COLOR;
+		configuration.error_color = DEFAULT_ERROR_COLOR;
+		configuration.notice_color = DEFAULT_NOTICE_COLOR;
+		configuration.ctcp_color = DEFAULT_CTCP_COLOR;
+		configuration.dcc_color = DEFAULT_DCC_COLOR;
+		configuration.join_color = DEFAULT_JOIN_COLOR;
+		configuration.rename_color = DEFAULT_RENAME_COLOR;
+		configuration.kick_color = DEFAULT_KICK_COLOR;
+		configuration.mode_color = DEFAULT_MODE_COLOR;
+		configuration.invite_color = DEFAULT_INVITE_COLOR;
+
+		mainform = remove_form(mainform);
+		return(E_NONE);
+	}   
+
+	else if (event == FORM_ID_OK){
+		comp = form_component_by_id(mainform, FORM_ID_WINCOLOR_F);
+		configuration.win_color_fg = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_WINCOLOR_B);
+		configuration.win_color_bg = active_list_line_id(comp->component);
+
+		comp = form_component_by_id(mainform, FORM_ID_MENUCOLOR_F);
+		configuration.menu_color_fg = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_MENUCOLOR_B);
+		configuration.menu_color_bg = active_list_line_id(comp->component);
+
+		comp = form_component_by_id(mainform, FORM_ID_FORMCOLOR_F);
+		configuration.form_color_fg = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_FORMCOLOR_B);
+		configuration.form_color_bg = active_list_line_id(comp->component);
+
+		comp = form_component_by_id(mainform, FORM_ID_FIELDCOLOR_F);
+		configuration.formfield_color_fg = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_FIELDCOLOR_B);
+		configuration.formfield_color_bg = active_list_line_id(comp->component);
+
+		comp = form_component_by_id(mainform, FORM_ID_BUTTONCOLOR_F);
+		configuration.formbutton_color_fg = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_BUTTONCOLOR_B);
+		configuration.formbutton_color_bg = active_list_line_id(comp->component);
+
+		/* message and text colors */
+		comp = form_component_by_id(mainform, FORM_ID_MESSAGECOLOR);
+		configuration.message_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_ERRORCOLOR);
+		configuration.error_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_NOTICECOLOR);
+		configuration.notice_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_CTCPCOLOR);
+		configuration.ctcp_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_DCCCOLOR);
+		configuration.dcc_color = active_list_line_id(comp->component);
+
+		comp = form_component_by_id(mainform, FORM_ID_JOINCOLOR);
+		configuration.join_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_RENAMECOLOR);
+		configuration.rename_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_KICKCOLOR);
+		configuration.kick_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_MODECOLOR);
+		configuration.mode_color = active_list_line_id(comp->component);
+		comp = form_component_by_id(mainform, FORM_ID_INVITECOLOR);
+		configuration.invite_color = active_list_line_id(comp->component);
+
+
+		/* set the default foreground and backround colors */
+		assume_default_colors(configuration.win_color_fg, configuration.win_color_bg);
+
+		mainform = remove_form(mainform);
+		configuration.changed = 1;
+		return(E_OK);
+	}
+	else if (event == KEY_ENTER || event == 10) process_form_events(mainform, E_NEXT);
+
+	print_form(mainform);
+	return(key);
+}
+
+
+form *create_color_options_form(){
+	void *comp;
+	form *form;
+	Fcheckbox *box;
+	Ftextarea *text;
+	int i;
+	char temp[256];
+
+	form = add_form("Color Settings", 0x000, -1, -1, 60, 18, FORM_COLOR_MAIN, STYLE_TITLE);
+
+	text = add_Ftextarea("Screen", 2, 4, 20, 1, STYLE_LEFT_JUSTIFY, -1, "Screen");
+	add_form_textarea (form, text);
+	comp = (void *) add_Flist("Foreground", 22, 4, 33, 4, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_WINCOLOR_F, F_LIST);
+	create_color_list(comp, configuration.win_color_fg);
+	comp = (void *) add_Flist("Background", 41, 4, 52, 4, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_WINCOLOR_B, F_LIST);
+	create_color_list(comp, configuration.win_color_bg);
+
+	text = add_Ftextarea("Menu", 2, 5, 20, 1, STYLE_LEFT_JUSTIFY, -1, "Menus");
+	add_form_textarea (form, text);
+	comp = (void *) add_Flist("Foreground", 22, 5, 33, 5, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_MENUCOLOR_B, F_LIST);
+	create_color_list(comp, configuration.menu_color_bg);
+	comp = (void *) add_Flist("Background", 41, 5, 52, 5, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_MENUCOLOR_F, F_LIST);
+	create_color_list(comp, configuration.menu_color_fg);
+	
+	text = add_Ftextarea("Form", 2, 6, 20, 1, STYLE_LEFT_JUSTIFY, -1, "Forms");
+	add_form_textarea (form, text);
+	comp = (void *) add_Flist("Foreground", 22, 6, 33, 6, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_FORMCOLOR_B, F_LIST);
+	create_color_list(comp, configuration.form_color_bg);
+	comp = (void *) add_Flist("Background", 41, 6, 52, 6, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_FORMCOLOR_F, F_LIST);
+	create_color_list(comp, configuration.form_color_fg);
+
+	text = add_Ftextarea("Fields", 2, 7, 20, 1, STYLE_LEFT_JUSTIFY, -1, "Form Fields");
+	add_form_textarea (form, text);
+	comp = (void *) add_Flist("Foreground", 22, 7, 33, 7, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_FIELDCOLOR_F, F_LIST);
+	create_color_list(comp, configuration.formfield_color_fg);
+	comp = (void *) add_Flist("Background", 41, 7, 52, 7, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_FIELDCOLOR_B, F_LIST);
+	create_color_list(comp, configuration.formfield_color_bg);
+
+	text = add_Ftextarea("Buttons", 2, 8, 20, 1, STYLE_LEFT_JUSTIFY, -1, "Form Buttons");
+	add_form_textarea (form, text);
+	comp = (void *) add_Flist("Foreground", 22, 8, 33, 8, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_BUTTONCOLOR_F, F_LIST);
+	create_color_list(comp, configuration.formbutton_color_fg);
+	comp = (void *) add_Flist("Background", 41, 8, 52, 8, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_BUTTONCOLOR_B, F_LIST);
+	create_color_list(comp, configuration.formbutton_color_bg);
+
+
+	/* first column */
+	comp = (void *) add_Flist("Message Color", 2, 10, 22, 10, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_MESSAGECOLOR, F_LIST);
+	create_color_list(comp, configuration.message_color);
+
+	comp = (void *) add_Flist("Error Color", 2, 11, 22, 11, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_ERRORCOLOR, F_LIST);
+	create_color_list(comp, configuration.error_color);
+
+	comp = (void *) add_Flist("Notice Color", 2, 12, 22, 12, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_NOTICECOLOR, F_LIST);
+	create_color_list(comp, configuration.notice_color);
+
+	comp = (void *) add_Flist("CTCP Color", 2, 13, 22, 13, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_CTCPCOLOR, F_LIST);
+	create_color_list(comp, configuration.ctcp_color);
+
+	comp = (void *) add_Flist("DCC Color", 2, 14, 22, 14, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_DCCCOLOR, F_LIST);
+	create_color_list(comp, configuration.dcc_color);
+
+	/* second column */
+	comp = (void *) add_Flist("Join Color", 32, 10, 52, 10, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_JOINCOLOR, F_LIST);
+	create_color_list(comp, configuration.join_color);
+
+	comp = (void *) add_Flist("Rename Color", 32, 11, 52, 11, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_RENAMECOLOR, F_LIST);
+	create_color_list(comp, configuration.rename_color);
+
+	comp = (void *) add_Flist("Kick Color", 32, 12, 52, 12, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_KICKCOLOR, F_LIST);
+	create_color_list(comp, configuration.kick_color);
+
+	comp = (void *) add_Flist("Mode Color", 32, 13, 52, 13, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_MODECOLOR, F_LIST);
+	create_color_list(comp, configuration.mode_color);
+
+	comp = (void *) add_Flist("Invite Color", 32, 14, 52, 14, 6, 1, FORM_COLOR_LIST, STYLE_TITLE | STYLE_NO_HIGHLIGHT);
+	add_form_component(form, comp, FORM_ID_INVITECOLOR, F_LIST);
+	create_color_list(comp, configuration.invite_color);
+
+	comp = (void *) add_Fbutton("Reset to Defaults", 23, 16, 19, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	add_form_component(form, comp, FORM_ID_RESET, F_BUTTON);
+	comp = (void *) add_Fbutton("OK", 43, 16, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
+	comp = (void *) add_Fbutton("Cancel", 50, 16, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
+
+         
+	return(form);
+}
+
+void create_color_list(Flist *comp, int curcolor){
+	add_Flistline(comp, C_BLACK, "Black", NULL, FORMLIST_LAST);
+	add_Flistline(comp, C_WHITE, "White", NULL, FORMLIST_LAST);
+	add_Flistline(comp, C_RED, "Red", NULL, FORMLIST_LAST);
+	add_Flistline(comp, C_GREEN, "Green", NULL, FORMLIST_LAST);
+	add_Flistline(comp, C_BLUE, "Blue", NULL, FORMLIST_LAST);
+	add_Flistline(comp, C_YELLOW, "Yellow", NULL, FORMLIST_LAST);
+	add_Flistline(comp, C_MAGENTA, "Purple", NULL, FORMLIST_LAST);
+	add_Flistline(comp, C_CYAN, "Cyan", NULL, FORMLIST_LAST);
+	set_active_list_line_by_id(comp, curcolor);
+}
+
+/** terminal info *******************************************************************************************/
+
+int get_term_info(int key){
+        void *comp;
+	Ftextarea *text;
+        int revent;
+
+	if (mainform == NULL){
+
+		mainform = add_form("Terminal Information", 0x000, -1, -1, 32, 13, FORM_COLOR_MAIN, STYLE_TITLE);
+
+		text = add_Ftextarea("Terminal", 2, 3, 36, 1, STYLE_CENTER_JUSTIFY, -1, "Terminal         %.11s", termname());
+		add_form_textarea (mainform, text);
+
+		text = add_Ftextarea("Screen", 2, 4, 36, 1, STYLE_CENTER_JUSTIFY, -1,   "Screen Size      %dx%d", COLS, LINES);
+		add_form_textarea (mainform, text);
+
+		#ifdef NCURSES_VERSION
+		text = add_Ftextarea("Interface", 2, 5, 36, 1, STYLE_CENTER_JUSTIFY, -1, "Curses Version   %s", NCURSES_VERSION);
+		add_form_textarea (mainform, text);
+		#else
+		// text = add_Ftextarea("Interface", 2, 5, 36, 1, STYLE_CENTER_JUSTIFY, -1, "Curses Version    Unknown");
+		// add_form_textarea (mainform, text);
+		#endif
+
+
+		text = add_Ftextarea("Color", 2, 6, 36, 1, STYLE_CENTER_JUSTIFY, -1,     "Color Support    %c", has_colors()?'Y':'N');
+		add_form_textarea (mainform, text);
+
+		text = add_Ftextarea("Colors", 2, 7, 36, 1, STYLE_CENTER_JUSTIFY, -1,    "Colors           %d", COLORS);
+		add_form_textarea (mainform, text);
+
+		text = add_Ftextarea("Pairs", 2, 8, 36, 1, STYLE_CENTER_JUSTIFY, -1,     "Color Palette    %d", COLOR_PAIRS);
+		add_form_textarea (mainform, text);
+
+		text = add_Ftextarea("Pairs", 2, 9, 36, 1, STYLE_CENTER_JUSTIFY, -1,     "Custom Colors    %c", can_change_color()?'Y':'N');
+		add_form_textarea (mainform, text);
+
+		comp = (void *) add_Fbutton("OK", 12, 11, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+		add_form_component(mainform, comp, E_OK, F_BUTTON);
+	}
+
+	print_form(mainform);
+	if (key == 10 || key == KEY_ENTER){
+		mainform = remove_form(mainform);
+		return(E_OK);
+	}
+	else return(E_NONE);
+}
+
 
 /** file select form  ***************************************************************************/
 
@@ -2329,9 +2486,9 @@ form *create_directory_listing_form(char *path){
 	struct stat filestat;
 
 
-	form = add_form("Select File", 0x000, -1, -1, 40, 20, COLOR_PAIR(F_BLUE*16+F_WHITE), STYLE_TITLE);
+	form = add_form("Select File", 0x000, -1, -1, 40, 20, FORM_COLOR_MAIN, STYLE_TITLE);
         
-	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, 1, 0, STYLE_TITLE);
+	comp = (void *) add_Flist("", 2, 3, 2, 4, 36, 13, FORM_COLOR_LIST, STYLE_TITLE);
 	add_form_component(form, comp, FORM_ID_FILE, F_LIST);
 
 	//vprint_all("Reading directory %s.\n", path);
@@ -2369,9 +2526,9 @@ form *create_directory_listing_form(char *path){
 	        closedir(dirp);
 	}
 
-	comp = (void *) add_Fbutton("OK", 23, 18, 6, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("OK", 23, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, 1, 0, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 18, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
 
 	return(form);

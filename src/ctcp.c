@@ -46,8 +46,9 @@
 #include <curses.h>
 #endif
 
-#include "common.h"
 #include "log.h"
+#include "ncolor.h"
+#include "common.h"
 #include "network.h"
 #include "screen.h"
 #include "dcc.h"
@@ -151,34 +152,32 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 
 	if (strncasecmp(command,"PING",4)==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("PING", "%s", command + 6), cmdnick, "");
-		//sprintf(reply, "NOTICE %s :%cPING %s%c\n", cmdnick, 1, command+6, 1);
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP PING Request from %s... %s.\n", cmdnick, replystate);
+		vprint_all_attrib(CTCP_COLOR, "CTCP PING Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"VERSION")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("VERSION", "%s", DEFAULT_CTCPVERSION), cmdnick, "");
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP VERSION Request from %s... %s.\n", cmdnick, replystate);
+		vprint_all_attrib(CTCP_COLOR, "CTCP VERSION Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"SOURCE")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("SOURCE", "%s", DEFAULT_CTCPSOURCE), cmdnick, "");
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP SOURCE Request from %s... %s.\n", cmdnick, replystate);
+		vprint_all_attrib(CTCP_COLOR, "CTCP SOURCE Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"FINGER")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("FINGER", "%s", configuration.ctcpfinger), cmdnick, "");
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP FINGER Request from %s... %s.\n", cmdnick, replystate);
+		vprint_all_attrib(CTCP_COLOR, "CTCP FINGER Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"USERINFO")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("USERINFO", "%s", configuration.ctcpuserinfo), cmdnick, "");
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP USERINFO Request from %s... %s.\n", cmdnick, replystate);
+		vprint_all_attrib(CTCP_COLOR, "CTCP USERINFO Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"CLIENTINFO")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("CLIENTINFO", "%s", DEFAULT_CTCPCLIENTINFO), cmdnick, "");
-		//sprintf(reply, "NOTICE %s :%cCLIENTINFO %s%c\n", cmdnick, 1, DEFAULT_CTCPCLIENTINFO, 1);
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP CLIENTINFO Request from %s... %s.\n", cmdnick, replystate);
+		vprint_all_attrib(CTCP_COLOR, "CTCP CLIENTINFO Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"TIME")==0){
@@ -187,7 +186,7 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 			timestamp[strlen(timestamp) - 1] = 0;
 			sendcmd_server(server, "NOTICE", create_ctcp_command("TIME", "%s", timestamp), cmdnick, "");
 		}
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP TIME Request from %s... %s.\n", cmdnick, replystate);
+		vprint_all_attrib(CTCP_COLOR, "CTCP TIME Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 
@@ -199,7 +198,7 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 
 
 	if (strncasecmp(command,"ERROR", 5)==0){
-		vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "CTCP %s reported from %s... %s\n", command, cmdnick);
+		vprint_all_attrib(CTCP_COLOR, "CTCP %s reported from %s... %s\n", command, cmdnick);
 		print_all(message);
 		return(TRUE);
 	}
@@ -220,7 +219,7 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 			unsigned int size;
 									
 			if (sscanf(dccinfo, "%s %lu %hd %d", filename, &hostip, &port, &size) != 4){
-				vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "Unknown DCC SEND request format: %s\n", commandstring);
+				vprint_all_attrib(DCC_COLOR, "Unknown DCC SEND request format: %s\n", commandstring);
 				return(FALSE);
 			}
 
@@ -229,18 +228,18 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 			
 				D = add_incoming_dcc_file(transferscreen, cmdnick, filename, hostip, port, size);
 				if (D == NULL){
-					vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "Unable to create DCC resources\n");
+					vprint_all_attrib(DCC_COLOR, "Unable to create DCC resources\n");
 					return(FALSE);
 				}
 
 				hostiph = ntohl(hostip); 
 				hostaddr.s_addr = hostiph; 
-				vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "DCC SEND file request for %s from %s port %hu\n", 
+				vprint_all_attrib(DCC_COLOR, "DCC SEND file request for %s from %s port %hu\n", 
 					filename, inet_ntoa(hostaddr), port);
 				return (1);
 			}
 			else {
-				vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "Ignoring DCC SEND file request from %s for %s from %s port %hu\n", 
+				vprint_all_attrib(DCC_COLOR, "Ignoring DCC SEND file request from %s for %s from %s port %hu\n", 
 					cmdnick, filename, inet_ntoa(hostaddr), port);
 			}
 			return(TRUE);
@@ -254,7 +253,7 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 									
 			if (sscanf(dccinfo, "%lu %hd", &hostip, &port) != 2){
 				if (sscanf(dccinfo, "chat %lu %hd", &hostip, &port) != 2){
-					vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "Unknown DCC CHAT request format: %s\n", commandstring);
+					vprint_all_attrib(DCC_COLOR, "Unknown DCC CHAT request format: %s\n", commandstring);
 					return(FALSE);
 				}
 			}
@@ -265,20 +264,20 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 				D = add_incoming_dcc_chat(cmdnick, dest, server, hostip, port);
 
 				if (D == NULL){
-					vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "Unable to create DCC resources\n");
+					vprint_all_attrib(DCC_COLOR, "Unable to create DCC resources\n");
 					return(FALSE);
 				}
 
 				hostiph = ntohl(hostip); 
 				hostaddr.s_addr = hostiph; 
-				vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "DCC CHAT request from %s port %hu\n", inet_ntoa(hostaddr), port);
+				vprint_all_attrib(DCC_COLOR, "DCC CHAT request from %s port %hu\n", inet_ntoa(hostaddr), port);
 				set_dccchat_update_status(D, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 				set_statusline_update_status(statusline, U_ALL_REFRESH);
 				return(TRUE);
 			}
 			else{
-				vprint_all_attribs(CTCP_COLOR_F, CTCP_COLOR_B, "Ignoring DCC CHAT request from %s at %s port %hu\n", 
+				vprint_all_attrib(DCC_COLOR, "Ignoring DCC CHAT request from %s at %s port %hu\n", 
 					cmdnick, inet_ntoa(hostaddr), port);
 			}
 		}
@@ -291,8 +290,8 @@ int translate_ctcp_message (char *command, char *cmdnick, char *cmduser, char *c
 	char scratch[MAXDATASIZE];
 
 	if (strncmp(command,"ACTION", 6)==0){
-		sprintf(scratch, "%c%d,%d* %s %s%c%d,%d *\n", 3, CTCP_COLOR_F, CTCP_COLOR_B, 
-			cmdnick, command+7, 3, CTCP_COLOR_F, CTCP_COLOR_B);
+		sprintf(scratch, "%c%d,%d* %s %s%c%d,%d *\n", 3, configuration.ctcp_color, configuration.win_color_bg, 
+			cmdnick, command+7, 3, configuration.ctcp_color, configuration.win_color_bg);
 		strcpy(message, scratch);
 		return(TRUE);
 	}

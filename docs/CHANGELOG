@@ -1,4 +1,15 @@
-Version 0.23b Beta: Dec 04, 2044
+Version 0.24b Beta: Jan 3, 2005
+Lots of changes and bug fixes
+- Added server password support
+- Fixed wrong initial nick when starting chat and supplying message
+- Fixed repeated attempts to start dcc chat when an error occurs 
+- Added custom color support
+- Ported to BeOS - mmu_man <revol@free.fr>
+- quoted $OSNAME in case in configure (no uname -o in BeOS) - mmu_man <revol@free.fr>
+- /msg now sends message without opening a chat window 
+- added /notice command parser
+
+Version 0.23b Beta: Dec 04, 2004
 First Public Beta
 
 - Added Control and List menu to channel screen user menu

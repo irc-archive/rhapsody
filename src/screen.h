@@ -14,7 +14,8 @@ void remove_screen(screen *screenptr);
 int print_screen(WINDOW *win, char *buffer);	
 int print_screen_opt(WINDOW *win, char *buffer, int linesize, int indent, int attr_def, int options);
 void print_all(char *buffer);
-void vprint_all_attribs(int foreground, int background, char *template, ...);
+void print_all_attrib(char *buffer, int attrib);
+void vprint_all_attrib(int attrib, char *template, ...);
 void vprint_all(char *template, ...);
 
 void scroll_message_screen(screen *screen, int lines);
@@ -43,7 +44,8 @@ server *add_server(char *servername, int port, char *nick, char *user, char *hos
 void refresh_server_screen(server *S);
 
 void print_server(server *S, char *buffer);
-void vprint_server_attribs(server *S, int foreground, int background, char *template, ...);
+void print_server_attrib(server *S, char *buffer, int attrib);
+void vprint_server_attrib(server *S, int attrib, char *template, ...);
 void vprint_server(server *S, char *template, ...);
 
 int server_update_status(server *S);
@@ -64,8 +66,9 @@ void refresh_user_list(channel *C);
 
 void printmsg_channel(channel *C, char *nick, char *buffer);
 void print_channel(channel *C, char *buffer);
+void print_channel_attrib(channel *C, char *buffer, int attrib);
 void printmymsg_channel(channel *C, char *buffer);
-void vprint_channel_attribs(channel *C, int foreground, int background, char *template, ...);
+void vprint_channel_attrib(channel *C, int attrib, char *template, ...);
 void vprint_channel(channel *C, char *template, ...);
 
 void refresh_user_list(channel *C);
@@ -100,9 +103,10 @@ void refresh_chat_screen(chat *C);
 chat *add_chat(char *chatname, server *server);
 
 void print_chat(chat *C, char *buffer);
+void print_chat_attrib(chat *C, char *buffer, int attrib);
 void printmsg_chat(chat *C, char *nick, char *buffer);
 void printmymsg_chat(chat *C, char *buffer);
-void vprint_chat_attribs(chat *C, int foreground, int background, char *template, ...);
+void vprint_chat_attrib(chat *C, int attrib, char *template, ...);
 void vprint_chat(chat *C, char *template, ...);
 
 void end_chat(chat *C);
@@ -124,9 +128,10 @@ dcc_chat *add_outgoing_dcc_chat(char *nick, char *dest, server *server);
 
 void printmsg_dcc_chat(dcc_chat *C, char *nick, char *buffer);
 void printmymsg_dcc_chat(dcc_chat *D, char *buffer);
-void print_dcc_chat(dcc_chat *C, char *buffer);				
+void print_dcc_chat(dcc_chat *C, char *buffer);		
+void print_dcc_chat_attrib(dcc_chat *C, char *buffer, int attrib);		
 
-void vprint_dcc_chat_attribs(dcc_chat *C, int foreground, int background, char *template, ...);
+void vprint_dcc_chat_attrib(dcc_chat *C, int attrib, char *template, ...);
 void vprint_dcc_chat(dcc_chat *C, char *template, ...);
 
 void disconnect_dccchat(dcc_chat *D);
@@ -193,6 +198,7 @@ void set_help_update_status(help *H, int update);
 void unset_help_update_status(help *H, int update);
 
 void print_help(help *H, char *buffer);
+void print_help_attrib(help *H, char *buffer, int attrib);
 int print_help_file(help *H, char *filename);
 
 

@@ -38,6 +38,9 @@
 #include <signal.h>
 #include <ctype.h>
 #include <pwd.h>
+#include <arpa/nameser.h>
+#include <resolv.h>
+#include <sys/utsname.h>
 
 #include "autodefs.h"
 #include "defines.h"
@@ -48,12 +51,12 @@
 #endif
 
 #include "log.h"
+#include "ncolor.h"
 #include "common.h"
 #include "events.h"
 #include "cevents.h"
 #include "screen.h"
 #include "network.h"
-#include "ncolor.h"
 #include "parser.h"
 #include "ctcp.h"
 #include "dcc.h"
@@ -74,6 +77,8 @@
 #define CF_CLIENT_OPTIONS 13
 #define CF_SCRIPT_OPTIONS 14
 #define CF_CTCP_OPTIONS 15
+#define CF_COLOR_OPTIONS 16
+#define CF_TERM_INFO 17
 
 #define CF_EDIT_CHANNEL_FAVORITES 20
 #define CF_JOIN 21
@@ -159,6 +164,7 @@ static char newserver[MAXDATASIZE];
 static char newchannel[MAXDATASIZE];
 static char newuser[MAXDATASIZE];
 static char newfile[MAXDATASIZE];
+static char newpassword[MAXDATASIZE];
 static dcc_file *newdccfile = NULL;
 //static dcc_file *selectedfile = NULL;
 
@@ -168,8 +174,10 @@ int sigkey;
 
 int main(int argc, char *argv[]){
 	struct passwd *pwd;
+	struct utsname host;
 	char buffer[MAXDATASIZE];
 	char inputbuffer[MAXDATASIZE];
+	char *scratchptr;
 	char scratch[MAXDATASIZE];
 	int serr, maxsfd, sfd;
 	int key;
@@ -209,8 +217,13 @@ int main(int argc, char *argv[]){
 	strcpy(homepath, pwd->pw_dir);
 
 	/* get the hostname and domain for defaults */
-	gethostname(hostname, MAXHOSTLEN);
-	getdomainname(domain, MAXDOMLEN);
+	uname(&host);
+	strcpy(hostname, host.nodename);
+	#ifdef _GNU_SOURCE
+	strcpy(domain, host.domainname);
+	#else
+	strcpy(domain, "");
+	#endif
 
 	sprintf(configfile, "%s/%s", homepath, DEFAULT_CONFIG_FILE);
 	//printf("%s:%s:%s", loginuser, homepath, configfile);
@@ -235,6 +248,8 @@ int main(int argc, char *argv[]){
 	vprint_all("Reading configuration from %s...", configfile);
 	configstat = read_config(configfile, &configuration);
 
+	//vprint_all("S %d-%s H %s, D %s\n", h_errno, hstrerror(h_errno), hostname, domain);
+
 	/* create a transfer screen and hide it by default */
 	transferscreen = add_transfer("transfers");
 	hide_screen(transfer_screen_by_name("transfers"), 1); 
@@ -242,13 +257,13 @@ int main(int argc, char *argv[]){
 	set_menuline_update_status(menuline, U_ALL_REFRESH);
 	set_statusline_update_status(statusline, U_ALL_REFRESH);
 
-	currentscreen=screenlist;
+	currentscreen = screenlist;
 	// update_current_screen();
 
-	bzero (inputbuffer,MAXDATASIZE);
-	resize_occured=0;
-	ctrl_c_occured=0;
-	alarm_occured=0;
+	bzero (inputbuffer, MAXDATASIZE);
+	resize_occured = 0;
+	ctrl_c_occured = 0;
+	alarm_occured = 0;
 
 	inputline_head = NULL;
 	inputline_current = NULL;
@@ -288,6 +303,7 @@ int main(int argc, char *argv[]){
 			wgetch(inputline->inputline);
 			resize_occured=0;
 			//inst_resize_handler();
+			key = E_NOWAIT;
 		}
 
 		// vprint_all(" A key = %d\n", key);
@@ -415,7 +431,7 @@ int main(int argc, char *argv[]){
 		current=screenlist;
 		while(current!=NULL){
 			// if this is an active (non-disconnected) server and its socket is ready	
-			if (current->type==SERVER){				
+			if (current->type == SERVER){				
 				if (serr > 0 && ((server *)(current->screen))->active &&
 				FD_ISSET(((server*)(current->screen))->serverfd, &readfds)) {		
 					serr=recv_line(((server *)(current->screen))->serverfd, buffer, MAXDATASIZE-1);
@@ -424,9 +440,7 @@ int main(int argc, char *argv[]){
 						((server *)(current->screen))->active = 0;
 						((server *)(current->screen))->connect_status = -1;
 						set_statusline_update_status(statusline, U_ALL_REFRESH);
-						sprintf (buffer, "%c%d,%dDisconnected from %s\n", 
-						3, ERROR_COLOR_F, ERROR_COLOR_B, ((server *)(current->screen))->server);
-						print_all(buffer);
+						vprint_all_attrib(ERROR_COLOR, "Disconnected from %s\n", ((server *)(current->screen))->server);
 					}
 					if (serr == 0);					
 					else parse_message((server *)(current->screen), buffer);
@@ -654,7 +668,7 @@ int process_server_events(int key){
 		}
 		else strcpy(wininfo, "");
 					
-		wattrset(statusline->statusline, COLOR_PAIR(STATUS_COLOR_B*16+STATUS_COLOR_F));
+		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 
@@ -683,15 +697,15 @@ int process_server_events(int key){
 	else if (key == E_SERVER_ADD_FAVORITE){
 		if (currentserver->active){
 			if (!config_server_exists(&configuration, currentserver->server, currentserver->port)){
-				add_config_server(&configuration, currentserver->server, currentserver->port, LIST_ORDER_FRONT);
+				add_config_server(&configuration, currentserver->server, currentserver->port, 
+					currentserver->password, LIST_ORDER_FRONT);
 				sprintf(buffer, "Server %s:%d added to favorites\n", currentserver->server, 
 					currentserver->port);
 				print_server(currentserver, buffer);
 				key = E_NOWAIT;				
 			}
 			else {
-				sprintf(buffer, "Server %s:%d is already a favorite\n", currentserver->server, 
-					currentserver->port);
+				sprintf(buffer, "Server %s:%d is already a favorite\n", currentserver->server, currentserver->port);
 				print_server(currentserver, buffer);
 				key = E_NOWAIT;				
 			}
@@ -1050,7 +1064,7 @@ int process_channel_events(int key){
 		}
 		else strcpy(wininfo, "");
 					
-		wattrset(statusline->statusline, COLOR_PAIR(STATUS_COLOR_B*16+STATUS_COLOR_F));
+		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 
@@ -1193,7 +1207,7 @@ int process_chat_events(int key){
 		}
 		else strcpy(wininfo, "");
 					
-		wattrset(statusline->statusline, COLOR_PAIR(STATUS_COLOR_B*16+STATUS_COLOR_F));
+		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 
@@ -1312,7 +1326,7 @@ int process_dccchat_events(int key){
 		}
 		else strcpy(wininfo, "");
 					
-		wattrset(statusline->statusline, COLOR_PAIR(STATUS_COLOR_B*16+STATUS_COLOR_F));
+		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 
@@ -1837,7 +1851,7 @@ int process_help_events(int key){
 	if (statusline_update_status(statusline) & U_ALL_REFRESH){
 
 		sprintf(wininfo, "(%d/%d)", currentscreen->scrollpos, LISTLINES);
-		wattrset(statusline->statusline, COLOR_PAIR(STATUS_COLOR_B*16+STATUS_COLOR_F));
+		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
@@ -1876,7 +1890,7 @@ int process_help_events(int key){
 int process_common_form_events(screen *inscreen, int key){
 	int formcode, formkey;
 	int update;
-	screen *nextscreen;
+	screen *current;
 	server *currentserver;
 	channel *new_channel;
 	chat *new_chat;
@@ -1899,7 +1913,7 @@ int process_common_form_events(screen *inscreen, int key){
 	}
 
 	else formkey = 0;
-	//vprint_all_attribs(1,1, "currentform = %d, formkey = %d, key = %d\n", currentform, formkey, key);
+	//vprint_all_attrib(1,1, "currentform = %d, formkey = %d, key = %d\n", currentform, formkey, key);
 
 	newform = 0;
 
@@ -1931,6 +1945,8 @@ int process_common_form_events(screen *inscreen, int key){
 	else if (key == E_CTCP_OPTIONS && currentform == 0) newform = CF_CTCP_OPTIONS;
 	else if (key == E_DCC_OPTIONS && currentform == 0) newform = CF_DCC_OPTIONS;
 	else if (key == E_DCC_SEND_OPTIONS && currentform == 0) newform = CF_DCC_SEND_OPTIONS;
+	else if (key == E_COLOR_OPTIONS && currentform == 0) newform = CF_COLOR_OPTIONS;
+	else if (key == E_TERM_INFO && currentform == 0) newform = CF_TERM_INFO;
 
 	else if (key == E_SAVE_OPTIONS){
 		if (writeconfig(configfile, &configuration)){
@@ -1979,7 +1995,7 @@ int process_common_form_events(screen *inscreen, int key){
 
 	/* form handlers */
 	if (currentform == CF_EXIT){
-		//vprint_all_attribs(1,1,"%d %d\n", key, formkey);
+		//vprint_all_attrib(1,1,"%d %d\n", key, formkey);
 		formcode = end_run(formkey);
 		if (formcode == E_CANCEL){
 			update = U_ALL_REFRESH;
@@ -1989,7 +2005,7 @@ int process_common_form_events(screen *inscreen, int key){
 
 	/* server forms */
 	else if (currentform == CF_NEW_SERVER_CONNECT){
-		formcode = get_new_connect_info(formkey, newserver, &newport);
+		formcode = get_new_connect_info(formkey, newserver, &newport, newpassword);
 		if (formcode == E_OK){
 			if (currentserver->active) disconnect_from_server(currentserver);
 			strcpy(currentserver->server, newserver);
@@ -2362,6 +2378,28 @@ int process_common_form_events(screen *inscreen, int key){
 			key = E_NOWAIT;
 		}
 	}
+	else if (currentform == CF_COLOR_OPTIONS){
+		formcode = get_color_info(formkey);
+		if (formcode == E_OK){
+			resize_occured = 1;
+			update = U_ALL_REFRESH;
+			currentform = 0;
+			key = E_CHANGE_SCREEN;
+		}
+		if (formcode == E_CANCEL){
+			update = U_ALL_REFRESH;
+			currentform = 0;
+			key = E_NOWAIT;
+		}
+	}
+	else if (currentform == CF_TERM_INFO){
+		formcode = get_term_info(formkey);
+		if (formcode == E_OK || formcode == E_CANCEL){
+			update = U_ALL_REFRESH;
+			currentform = 0;
+			key = E_NOWAIT;
+		}
+	}
 
 	else if (currentform == CF_HELP_ABOUT){
 		formcode = view_about(formkey);
@@ -2566,9 +2604,13 @@ int draw_menuline_screen(menuwin *menuline, menubar *menubar){
 		// if some screen has updated build the new menu selection window	
 		if (repattr == A_BOLD) updatemenu = 1;
 
-		if (currentscreen==current) repattr = A_REVERSE | A_BOLD;
-		wattrset(menuline->menuline, COLOR_PAIR(LIST_COLOR_B*16+LIST_COLOR_F));
+		if (currentscreen==current) repattr = A_BOLD;
+		else repattr |= A_REVERSE;
+
+		wattrset(menuline->menuline, MENU_COLOR);
 		wattron(menuline->menuline, repattr);
+
+		// wattrset(menuline->menuline, make_color(configuration.menu_color_fg, configuration.menu_color_bg));
 
 		if (current->hidden == 0){
 			mvwaddch(menuline->menuline, 0, COLS-screennum-1, repchar);
@@ -2638,8 +2680,7 @@ int parse_input(server *currentserver, char *buffer){
 		}
 	}
 
-	else if (strcasecmp(command, "msg") == 0 || strcasecmp(command, "message") == 0 || 
-		strcasecmp(command, "chat") == 0){
+	else if (strcasecmp(command, "chat") == 0 || strcasecmp(command, "query") == 0){ 
 		chat *C;
 		
 		pnum = sscanf(parameters, "%s %[^\n]", nick, message);
@@ -2658,7 +2699,7 @@ int parse_input(server *currentserver, char *buffer){
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 				set_statusline_update_status(statusline, U_ALL_REFRESH);
 				if (pnum == 2){
-					printmsg_chat(C, nick, message);
+					printmsg_chat(C, currentserver->nick, message);
 					sendmsg_chat(C, message);
 				}
 				return(E_CHANGE_SCREEN);
@@ -2676,6 +2717,30 @@ int parse_input(server *currentserver, char *buffer){
 				return(E_CHANGE_SCREEN);
 			}				
 		}	
+	}
+
+	else if (strcasecmp(command, "msg") == 0 || strcasecmp(command, "message") == 0){
+		pnum = sscanf(parameters, "%s %[^\n]", nick, message);
+		if (pnum < 2){
+			vprint_all("Usage: /%s <nick> <message>\n", command);
+			return(E_OTHER);
+		}
+		else if (strcmp(nick, currentserver->nick) == 0) print_all("You can not chat with yourself.\n");
+		else if (!currentserver->active) print_all("Must be connected to a server to chat.\n");
+		else {
+			sendcmd_server(currentserver, "PRIVMSG", message, nick, currentserver->nick);
+			return(E_OTHER);
+		}
+	}
+
+	else if (strcasecmp(command, "notice") == 0){
+		pnum = sscanf(parameters, "%s %[^\n]", nick, message);
+		if (pnum < 2){
+			vprint_all("Usage: /%s <nick>|<channel> <message>\n", command);
+			return(E_OTHER);
+		}
+		sendcmd_server(currentserver, "NOTICE", message, nick, currentserver->nick);
+		return(E_OTHER);
 	}
 
 	else if (strcasecmp(command, "ctcp") == 0){
@@ -2736,7 +2801,7 @@ int parse_input(server *currentserver, char *buffer){
 					if (strcmp(nick, currentserver->nick) == 0) print_all("You can not DCC send to yourself.\n");
 					else if (!currentserver->active) print_all("Must be connected to a server to DCC send a file.\n");
 					else {
-						vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "Attempting to DCC Send file %s to %s.\n",
+						vprint_all_attrib(MESSAGE_COLOR, "Attempting to DCC Send file %s to %s.\n",
 							file, nick);
 
 						/* truncate the filename by dropping path */		
@@ -2783,9 +2848,7 @@ int parse_input(server *currentserver, char *buffer){
 		if (currentscreen->type == CHANNEL){
 			C = currentscreen->screen;
 			sendmsg_channel(C, create_ctcp_command("ACTION", parameters));
-			sprintf(message, "%c%d,%d* %s %s%c%d,%d *\n", 
-			3, CTCP_COLOR_F, CTCP_COLOR_B, C->server->nick, parameters, 3, CTCP_COLOR_F, CTCP_COLOR_B);
-			print_channel(C, message);
+			vprint_channel_attrib(C, CTCP_COLOR, "* %s %s *\n", C->server->nick, parameters);
 			return(E_OTHER);
 		}
 	}
@@ -2881,7 +2944,6 @@ void parse_message(server *currentserver, char *buffer){
 		else if (sourcechat != NULL){
 	 		printmsg_chat(sourcechat, cmdnick, message);
 		}
-
 		
 		else if (strncasecmp(dest, currentserver->nick, MAXNICKLEN)==0){
 			if (!config_user_exists(&configuration, CONFIG_IGNORED_USER_LIST, cmdnick) ||
@@ -2892,7 +2954,7 @@ void parse_message(server *currentserver, char *buffer){
 				set_statusline_update_status(statusline, U_ALL_REFRESH);
 				printmsg_chat(sourcechat, cmdnick, message);
 			}
-			else vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "Ignoring message from %s.\n", cmdnick); 
+			else vprint_all_attrib(MESSAGE_COLOR, "Ignoring message from %s.\n", cmdnick); 
 		}
 	}
 	
@@ -2900,7 +2962,6 @@ void parse_message(server *currentserver, char *buffer){
 		channel *C;
 
 		get_next_param(cmdparam, dest);
-		sprintf(touser, "%c%d,%d%s has joined %s\n", 3, JOIN_COLOR_F, JOIN_COLOR_B, cmdnick, dest);
 		
 		// if i'm joining, note what channel i'm about to enter 
 		// replace this code with something that will auto create missing channels
@@ -2915,24 +2976,23 @@ void parse_message(server *currentserver, char *buffer){
 			C = channel_by_name(dest);
 			if (C != NULL) {
 				add_user(C, cmdnick, 0, 0);
+				vprint_channel_attrib(C, JOIN_COLOR, "%s has joined %s\n", cmdnick, dest);
 				set_channel_update_status(C, U_USER_REFRESH);
 			}
 		}
-		print_channel(C, touser);
 	}
 			
 	else if (strcasecmp(command,"PART")==0){
 		channel *C;
 
-		get_next_param(cmdparam, dest);
-		sprintf(touser, "%c%d,%d%s has left %s\n", 3, PART_COLOR_F, PART_COLOR_B, cmdnick, dest);
-		
+		get_next_param(cmdparam, dest);		
+
 		// if i'm leaving, turn off the active flag in this channel
-		C=channel_by_name(dest);
+		C = channel_by_name(dest);
 		if (C != NULL){
-			print_channel(C, touser);
 			remove_user(C, cmdnick);
-			if (strcmp(cmdnick, currentserver->nick)==0) C->active = 0;
+			vprint_channel_attrib(C, JOIN_COLOR, "%s has left %s\n", cmdnick, dest);
+			if (strcmp(cmdnick, currentserver->nick) == 0) C->active = 0;
 		}
 	}	
 	
@@ -2941,13 +3001,12 @@ void parse_message(server *currentserver, char *buffer){
 		screen *current;
 
 		get_next_param(cmdparam, message);
-		sprintf(touser, "%c%d,%d%s has quit IRC, %s\n", 3, PART_COLOR_F, PART_COLOR_B, cmdnick, message);
 
 		current=screenlist; 
-		while(current!=NULL){
-			if (current->type==CHANNEL){
+		while(current != NULL){
+			if (current->type == CHANNEL){
 				if (remove_user (current->screen, cmdnick)){
-					print_channel(current->screen, touser);		
+					vprint_channel_attrib(current->screen, JOIN_COLOR, "%s has quit IRC, %s\n", cmdnick, message);
 				}
 			}
 			current=current->next;
@@ -2957,7 +3016,7 @@ void parse_message(server *currentserver, char *buffer){
 	else if (strcasecmp(command,"NOTICE")==0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(NOTICE_COLOR_F, NOTICE_COLOR_B, "%s\n", message);
+		vprint_all_attrib(NOTICE_COLOR, "%s\n", message);
 	}
 		
 	// :user!host@domain KICK #channel nick :message
@@ -2967,80 +3026,86 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, fromchannel); 				
 		get_next_param(cmdparam, dest); 				
 		get_next_param(cmdparam, message); 					
-		sprintf(touser,"%c%d,%d%s kicks %s, %s\n", 3, KICK_COLOR_F, KICK_COLOR_B, cmdnick, dest, message );
 
-		C = channel_by_name(fromchannel);				
-		print_channel(C, touser);
-		remove_user(C, dest);				
+		C = channel_by_name(fromchannel);
+		if (C != NULL){			
+			vprint_channel_attrib(C, KICK_COLOR, "%s kicks %s, %s\n", cmdnick, dest, message);
+			remove_user(C, dest);
+		}				
 	}
 
-	// if a nick is changed go through all channels and rename nicks
-	// add chat nick changes later
-	// :nick!host@domain NICK :newnick
-	else if (strcasecmp(command,"NICK")==0){
+	/* if a nick is changed go through all channels and rename nicks */
+	/* add chat nick changes later */
+	/* :nick!host@domain NICK :newnick */
 
+	else if (strcasecmp(command,"NICK")==0){
 		get_next_param(cmdparam, dest); 				
-		sprintf(touser,"%c%d,%d%s is now known as %s\n", 3, RENAME_COLOR_F, RENAME_COLOR_B, cmdnick, dest);
 
 		current=screenlist; 
 		while(current!=NULL){
-			if (current->type==CHANNEL){
+			if (current->type == CHANNEL){
 				userstatus = get_user_status(current->screen, cmdnick, &op, &voice);
 
 				if (remove_user (current->screen, cmdnick)){
-					print_channel(current->screen, touser);
-
+					vprint_channel_attrib(current->screen, RENAME_COLOR, "%s is now known as %s\n", cmdnick, dest);
 					/* preserve user status (op, voice) */
 					add_user(current->screen, dest, op, voice);		
 					set_channel_update_status(current->screen, U_ALL_REFRESH);
 				}
 			}
-			// if my nick is changed update the server nick as well
-			else if (current->type==SERVER){
-				if (strcmp(((server*)(current->screen))->nick, cmdnick) == 0){
-					print_server(current->screen, touser);
-					strcpy(((server*)(current->screen))->nick, dest);
-					set_statusline_update_status(statusline, U_ALL_REFRESH);		
-				}
-			}
 			current=current->next;
 		}
-	}
 
-	// :nick!host@domain MODE #channel/user +/-attribute [match] 
-	else if (strcasecmp(command,"MODE")==0){
+		/* if my nick is changed update the server nick as well */
+		if (strcmp(currentserver->nick, cmdnick) == 0){
+			vprint_server_attrib(currentserver, RENAME_COLOR, "%s is now known as %s\n", cmdnick, dest);
+			strcpy(currentserver->nick, dest);
+			set_statusline_update_status(statusline, U_ALL_REFRESH);		
+		}
+	}
+	
+	/* MODE command */
+	/* :nick!host@domain MODE #channel/user +/-attribute [match] */
+	else if (strcasecmp(command, "MODE")==0){
 		channel *C;
 		get_next_param(cmdparam, dest); 				
 		get_next_param(cmdparam, message);
-		if (cmdparam[0]!=0){ 					
-			sprintf(touser,"%c%d,%d%s sets mode %s %s for %s\n", 3, 
-				MODE_COLOR_F, MODE_COLOR_B, cmdnick, message, cmdparam, dest);
-		}
-		else { 					
-			sprintf(touser,"%c%d,%d%s sets mode %s for %s\n", 3, 
-				MODE_COLOR_F, MODE_COLOR_B, cmdnick, message, dest);
-		}
-		
+
 		C = channel_by_name(dest);
-		if (C == NULL) print_server(currentserver, touser);
-		else{
-			print_channel(C, touser);
-			change_user_status(C, cmdparam, message);
+		if (cmdparam[0] != 0){ 					
+			if (C == NULL){ 
+				vprint_server_attrib(currentserver, MODE_COLOR, "%s sets mode %s %s for %s\n", 
+					cmdnick, message, cmdparam, dest);
+			}
+			else {
+				vprint_channel_attrib(C, MODE_COLOR, "%s sets mode %s %s for %s\n", 
+					cmdnick, message, cmdparam, dest);
+				change_user_status(C, cmdparam, message);
+			}
+		}
+		else { 
+			if (C == NULL){
+				vprint_server_attrib(currentserver, MODE_COLOR, "%s sets mode %s for %s\n", 
+					cmdnick, message, dest);
+			}
+			else{
+				vprint_channel_attrib(C, MODE_COLOR, "%s sets mode %s for %s\n", 
+					cmdnick, message, dest);
+				change_user_status(C, cmdparam, message);
+			}
 		}
 	}		
 
-	// :nick!host@domain INVITE nick :#channel
-	else if (strcasecmp(command,"INVITE")==0){
+	/* invitation, :nick!host@domain INVITE nick :#channel */
+	else if (strcasecmp(command, "INVITE") == 0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		sprintf(touser,"%c%d,%d%s has been invited to join %s\n", 3, 
-			INVITE_COLOR_F, INVITE_COLOR_B, dest, message);
-		print_server(currentserver, touser);
+		vprint_all_attrib(INVITE_COLOR, "%s has been invited to join %s\n", dest, message);
 	}
-	
-	else if (strcasecmp(command,"ERROR")==0){
-		// get_next_param(cmdparam, message); 				
-		sprintf(touser,"%c%d,%d%s\n", 3, ERROR_COLOR_F, ERROR_COLOR_B, cmdparam );
+
+	/* error message */	
+	else if (strcasecmp(command, "ERROR") == 0){
+		vprint_all_attrib(ERROR_COLOR, "%c%d,%d%s\n", cmdparam );
 		print_all(touser);				
 	}
 
@@ -3427,7 +3492,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s: %s.\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s: %s.\n", message, dest); 
 	}
 
 	/* no such channel */
@@ -3435,7 +3500,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s: %s.\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s: %s.\n", message, dest); 
 	}
 
 	/* Cannot send to channel */
@@ -3443,14 +3508,14 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s: %s.\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s: %s.\n", message, dest); 
 	}
 
 	/* List output too large */
 	else if (strcmp(command,"416")==0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Error processing command %s, %s.\n", message, cmdparam); 
+		vprint_all_attrib(ERROR_COLOR, "Error processing command %s, %s.\n", message, cmdparam); 
 	}
 
 	/* Unknown command */
@@ -3458,7 +3523,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Unknown command: %s.\n", dest); 
+		vprint_all_attrib(ERROR_COLOR, "Unknown command: %s.\n", dest); 
 	}
 
 	/* Nick held */
@@ -3467,7 +3532,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s.\n", dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s.\n", dest); 
 	}
 
 	/* nick already in use */
@@ -3475,19 +3540,19 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s\n", message); 
+		vprint_all_attrib(ERROR_COLOR, "%s\n", message); 
 
 		/* if first configuration nick is taken try the alternate */
 		if (strcmp(currentserver->nick, configuration.nick) == 0 && currentserver->nickinuse != 2){
 			currentserver->nickinuse = 2;
-			vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "Primary nick taken, trying alternate nick.\n", dest); 
+			vprint_all_attrib(MESSAGE_COLOR, "Primary nick taken, trying alternate nick.\n", dest); 
 			sendcmd_server(currentserver, "NICK", configuration.alt_nick, "", "");
 			sendcmd_server(currentserver, "MODE", configuration.mode, configuration.alt_nick, "");
 			strcpy(currentserver->lastnick, currentserver->nick);
 			strcpy(currentserver->nick, configuration.alt_nick);
 		}
 		else{
-			vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "Use /nick to select a different nickname.\n", dest); 
+			vprint_all_attrib(MESSAGE_COLOR, "Use /nick to select a different nickname.\n", dest); 
 			strcpy(currentserver->nick, currentserver->lastnick);
 		}
 		set_statusline_update_status(statusline, U_ALL);
@@ -3498,15 +3563,15 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "You are not in channel %s.\n", dest); 
+		vprint_all_attrib(ERROR_COLOR, "You are not in channel %s.\n", dest); 
 	}
 	
 	/* register first */
 	else if (strcmp(command, "451")==0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s\n", message); 
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "Make sure you have logged in correctly and used the proper nickname.\n"); 
+		vprint_all_attrib(ERROR_COLOR, "%s\n", message); 
+		vprint_all_attrib(MESSAGE_COLOR, "Make sure you have logged in correctly and used the proper nickname.\n"); 
 		print_server(currentserver, touser);
 	}
 
@@ -3515,7 +3580,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s %s\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s %s\n", message, dest); 
 	}
 
 	/* Cannot join channel (+b) */
@@ -3523,14 +3588,14 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "%s %s\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s %s\n", message, dest); 
 	}
 	
 	/* identify to a registered nick */
 	else if (strcmp(command,"477")==0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "%s\n", message); 
+		vprint_all_attrib(MESSAGE_COLOR, "%s\n", message); 
 	}
 
 	/* not an op */
@@ -3538,7 +3603,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Channel %s: %s\n", dest, message); 
+		vprint_all_attrib(ERROR_COLOR, "Channel %s: %s\n", dest, message); 
 	}
 	
 	/* if this is an unknown numeric command, just print it to the screen */
@@ -3674,7 +3739,7 @@ int disconnect_from_server (server *S){
 	send_all(S->serverfd, buffer, strlen(buffer));
 	S->active = 0;
 	close(S->serverfd);
-	vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B,"Disconnected from %s\n", S->server);
+	vprint_all_attrib(MESSAGE_COLOR, "Disconnected from %s\n", S->server);
 	set_statusline_update_status(statusline, U_ALL_REFRESH);
 	screenupdated = 1;
 	return(1);
@@ -3702,12 +3767,12 @@ int connect_to_server (server *S){
 		strcpy(S->lastnick, configuration.nick);
 
 		if ((S->serverfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Error: Cannot create a socket\n");
+			vprint_all_attrib(ERROR_COLOR, "Error: Cannot create a socket\n");
 			S->connect_status = -1;
 			return(0);
 		}
 		else{
-			vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "Looking up %s ...\n", S->server);
+			vprint_all_attrib(MESSAGE_COLOR, "Looking up %s ...\n", S->server);
 			S->connect_status = 1;
 			return(1);
 		}
@@ -3715,12 +3780,12 @@ int connect_to_server (server *S){
 
 	if (S->connect_status == 1){
 		if ((host = gethostbyname(S->server)) == NULL) {
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Error: Cannot find host %s\n", S->server);
+			vprint_all_attrib(ERROR_COLOR, "Error: Cannot find host %s\n", S->server);
 			S->connect_status = -1;
 			return(0);
 		}
 		else {
-			vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B,"Connecting to %s (%s) on port %d ...\n", 
+			vprint_all_attrib(MESSAGE_COLOR, "Connecting to %s (%s) on port %d ...\n", 
 				host->h_name, inet_ntoa(*((struct in_addr*)host->h_addr)), S->port);
 			S->connect_status = 2;
 			return(1);
@@ -3733,23 +3798,27 @@ int connect_to_server (server *S){
 		their_addr.sin_addr = *((struct in_addr *)host->h_addr);
 		bzero(&(their_addr.sin_zero), 8);
 	        if (connect (S->serverfd, (struct sockaddr *)&their_addr, sizeof(struct sockaddr)) == -1) {
-			vprint_all_attribs(ERROR_COLOR_F, ERROR_COLOR_B, "Failed to connect to host %s (%s) on port %d ...\n", 
+			vprint_all_attrib(ERROR_COLOR, "Failed to connect to host %s (%s) on port %d ...\n", 
 				host->h_name, inet_ntoa(*((struct in_addr *)host->h_addr)), S->port);
 			S->connect_status = -1;
 			return(0);
 		}
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B, "Connected to %s (%s) on port %d ...\n", 
+		vprint_all_attrib(MESSAGE_COLOR, "Connected to %s (%s) on port %d ...\n", 
 			host->h_name, inet_ntoa(*((struct in_addr*)host->h_addr)), S->port);
 		S->connect_status = 3;
 		return(1);
 	}
 
 	if (S->connect_status == 3){
-		vprint_all_attribs(MESSAGE_COLOR_F, MESSAGE_COLOR_B,"Logging on as %s ...\n", S->nick);
+		vprint_all_attrib(MESSAGE_COLOR, "Logging on as %s ...\n", S->nick);
 
 		S->nickinuse = 1;
 		sprintf(buffer,"USER %s %s %s :%s\n",S->user, S->host, S->domain, S->name);
 		send_all(S->serverfd, buffer, strlen(buffer));
+		if (strlen(S->password)){
+			sprintf(buffer,"PASS %s\n", S->password);
+			send_all(S->serverfd, buffer, strlen(buffer));
+		}
 		sprintf(buffer,"NICK :%s\n",S->nick);
 		send_all(S->serverfd, buffer, strlen(buffer));
 		sprintf(buffer,"MODE %s +%s\n",S->nick, configuration.mode);

@@ -33,11 +33,12 @@
 #include <curses.h>
 #endif
 
+#include "log.h"
+#include "ncolor.h"
 #include "common.h"
 #include "screen.h"
 #include "events.h"
 #include "cevents.h"
-#include "log.h"
 #include "cmenu.h"
 
 extern menu *ServerMenu[6];
@@ -287,45 +288,48 @@ void init_all_menus(){
 	add_menu_item(ServerMenu[0], " Exit                  Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
 
 	ServerMenu[1] = init_menu(11, 1,"Channel", 'N');
-	add_menu_item(ServerMenu[1], " Join New ...             ", "", 0, M_SELECTABLE, E_JOIN_NEW, NULL);
-	add_menu_item(ServerMenu[1], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[1], " Join Favorite ...        ", "", 0, M_SELECTABLE, E_JOIN_FAVORITE, NULL);
-	add_menu_item(ServerMenu[1], " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_CHANNEL_EDIT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[1], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[1], " Channel List ...         ", "", 0, M_SELECTABLE, E_CHANNEL_LIST, NULL);
+	add_menu_item(ServerMenu[1], " Join New ...        ", "", 0, M_SELECTABLE, E_JOIN_NEW, NULL);
+	add_menu_item(ServerMenu[1], "                     ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[1], " Join Favorite ...   ", "", 0, M_SELECTABLE, E_JOIN_FAVORITE, NULL);
+	add_menu_item(ServerMenu[1], " Edit Favorites ...  ", "", 0, M_SELECTABLE, E_CHANNEL_EDIT_FAVORITE, NULL);
+	add_menu_item(ServerMenu[1], "                     ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[1], " Channel List ...    ", "", 0, M_SELECTABLE, E_CHANNEL_LIST, NULL);
 
 	ServerMenu[2] = init_menu(22, 1,"User", 'U');
-	add_menu_item(ServerMenu[2], " Chat New ...             ", "", 0, M_SELECTABLE, E_CHAT_NEW, NULL);
-	add_menu_item(ServerMenu[2], " Chat Favorite ...        ", "", 0, M_SELECTABLE, E_CHAT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[2], " DCC Chat New ...         ", "", 0, M_SELECTABLE, E_DCC_CHAT_NEW, NULL);
-	add_menu_item(ServerMenu[2], " DCC Chat Favorite ...    ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], " DCC Send New ...         ", "", 0, M_SELECTABLE, E_DCC_SEND_NEW, NULL);
-	add_menu_item(ServerMenu[2], " DCC Send Favorite ...    ", "", 0, M_SELECTABLE, E_DCC_SEND_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[2], " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], " Edit Ignored ...         ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
+	add_menu_item(ServerMenu[2], " Chat New ...           ", "", 0, M_SELECTABLE, E_CHAT_NEW, NULL);
+	add_menu_item(ServerMenu[2], " Chat Favorite ...      ", "", 0, M_SELECTABLE, E_CHAT_FAVORITE, NULL);
+	add_menu_item(ServerMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[2], " DCC Chat New ...       ", "", 0, M_SELECTABLE, E_DCC_CHAT_NEW, NULL);
+	add_menu_item(ServerMenu[2], " DCC Chat Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
+	add_menu_item(ServerMenu[2], " DCC Send New ...       ", "", 0, M_SELECTABLE, E_DCC_SEND_NEW, NULL);
+	add_menu_item(ServerMenu[2], " DCC Send Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_FAVORITE, NULL);
+	add_menu_item(ServerMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[2], " Edit Favorites ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
+	add_menu_item(ServerMenu[2], " Edit Ignored ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
 
 	ServerMenu[3] = init_menu(30, 1, "Options", 'T');
-	add_menu_item(ServerMenu[3], " Identity ...           ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
-	add_menu_item(ServerMenu[3], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[3], " Client Options ...     ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], " CTCP Options ...       ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], " DCC Options ...        ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], " DCC Send Options ...        ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[3], " Save Configuration     ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menu_item(ServerMenu[3], " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(ServerMenu[3], "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[3], " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(ServerMenu[3], " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(ServerMenu[3], " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(ServerMenu[3], " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(ServerMenu[3], "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[3], " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(ServerMenu[3], " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(ServerMenu[3], "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[3], " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
 
 	ServerMenu[4] = init_menu(41, 1, "Window", 'W');
 	add_menu_item(ServerMenu[4], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
 	add_menu_item(ServerMenu[4], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
 
 	ServerMenu[5] = init_menu(51, 1, "Help", 'P');
-	add_menu_item(ServerMenu[5], " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ServerMenu[5], " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ServerMenu[5], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ServerMenu[5], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[5], " About                  ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menu_item(ServerMenu[5], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(ServerMenu[5], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(ServerMenu[5], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(ServerMenu[5], "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[5], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
 
 
 	/** CHANNEL MENU ***********************************************************************************************/
@@ -348,11 +352,11 @@ void init_all_menus(){
 	add_menu_item(ChannelMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
 
 	ChannelMenu[2] = init_menu(22, 1, "Help", 'P');
-	add_menu_item(ChannelMenu[2], " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ChannelMenu[2], " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ChannelMenu[2], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ChannelMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChannelMenu[2], " About                  ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menu_item(ChannelMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(ChannelMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(ChannelMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(ChannelMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ChannelMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
 
 	CtcpMenu = init_menu(1, 1 ,"Ctcp", 0);
 	add_menu_item(CtcpMenu, " Ping         ", "", 0, M_SELECTABLE, E_CTCP_PING, NULL);
@@ -384,18 +388,16 @@ void init_all_menus(){
 	add_menu_item(UserListMenu, " Unignore              ", "", 0, M_SELECTABLE, E_USER_REMOVE_IGNORED, NULL);
 
 	UserMenu = init_menu(1, 1,"User", 0);
-	add_menu_item(UserMenu, " Copy and Paste    ", "", 0, M_SELECTABLE, E_USER_PASTE, NULL);
-	add_menu_item(UserMenu, "                   ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(UserMenu, " Control ...       ", "", 0, M_SELECTABLE, -1, ControlMenu);
-	add_menu_item(UserMenu, " Ctcp ...          ", "", 0, M_SELECTABLE, -1, CtcpMenu);
-	add_menu_item(UserMenu, " DCC ...           ", "", 0, M_SELECTABLE, -1, DCCMenu);
-	add_menu_item(UserMenu, " User List ...     ", "", 0, M_SELECTABLE, -1, UserListMenu);
-	add_menu_item(UserMenu, "                   ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(UserMenu, " Chat              ", "", 0, M_SELECTABLE, E_QUERY, NULL);
-	add_menu_item(UserMenu, " Whois             ", "", 0, M_SELECTABLE, E_WHOIS, NULL);
+	add_menu_item(UserMenu, " Copy and Paste  ", "", 0, M_SELECTABLE, E_USER_PASTE, NULL);
+	add_menu_item(UserMenu, "                 ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(UserMenu, " Control ...     ", "", 0, M_SELECTABLE, -1, ControlMenu);
+	add_menu_item(UserMenu, " Ctcp ...        ", "", 0, M_SELECTABLE, -1, CtcpMenu);
+	add_menu_item(UserMenu, " DCC ...         ", "", 0, M_SELECTABLE, -1, DCCMenu);
+	add_menu_item(UserMenu, " User List ...   ", "", 0, M_SELECTABLE, -1, UserListMenu);
+	add_menu_item(UserMenu, "                 ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(UserMenu, " Chat            ", "", 0, M_SELECTABLE, E_QUERY, NULL);
+	add_menu_item(UserMenu, " Whois           ", "", 0, M_SELECTABLE, E_WHOIS, NULL);
 
-	// add_menu_item(UserMenu, " Dcc ...           ", "", 0, M_SELECTABLE, -1, NULL);
-	// add_menu_item(UserMenu, " Info ...          ", "", 0, M_SELECTABLE, -1, InfoMenu);
 
 	/** CHAT MENU ***********************************************************************************************/
 
@@ -419,11 +421,11 @@ void init_all_menus(){
 	add_menu_item(ChatMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
 
 	ChatMenu[2] = init_menu(20, 1, "Help", 'P');
-	add_menu_item(ChatMenu[2], " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ChatMenu[2], " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ChatMenu[2], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ChatMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChatMenu[2], " About                  ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menu_item(ChatMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(ChatMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(ChatMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(ChatMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ChatMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
 
 
 	/** DCCCHAT MENU ***********************************************************************************************/
@@ -450,11 +452,11 @@ void init_all_menus(){
 	add_menu_item(DCCChatMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
 
 	DCCChatMenu[2] = init_menu(24, 1, "Help",'P');
-	add_menu_item(DCCChatMenu[2], " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(DCCChatMenu[2], " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(DCCChatMenu[2], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(DCCChatMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(DCCChatMenu[2], " About                  ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menu_item(DCCChatMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(DCCChatMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(DCCChatMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(DCCChatMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(DCCChatMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
 
 
 	/** TRANSFER MENU ***********************************************************************************************/
@@ -471,11 +473,11 @@ void init_all_menus(){
 	add_menu_item(TransferMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
 
 	TransferMenu[2] = init_menu(23, 1, "Help", 'P');
-	add_menu_item(TransferMenu[2], " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(TransferMenu[2], " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(TransferMenu[2], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(TransferMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(TransferMenu[2], " About                  ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menu_item(TransferMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(TransferMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(TransferMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(TransferMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(TransferMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
 
 
 	/** LIST MENU ***************************************************************************************************/
@@ -494,11 +496,11 @@ void init_all_menus(){
 	add_menu_item(ListMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
 
 	ListMenu[2] = init_menu(20, 1, "Help", 'P');
-	add_menu_item(ListMenu[2], " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ListMenu[2], " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ListMenu[2], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ListMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ListMenu[2], " About                  ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menu_item(ListMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(ListMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(ListMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(ListMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ListMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
 
 
 	/** HELP MENU **************************************************************************************************/
@@ -528,6 +530,7 @@ void print_menu(menu *menu){
 		print_all("Menu cannot be displayed properly, please resize the screen.\n");
 	}
 	else {
+
 /*
 		if (menu->startx + menu->width > COLS) mwidth = COLS - menu->startx;
 		else mwidth = menu->width;
@@ -562,7 +565,7 @@ void print_menu(menu *menu){
 		if (current != NULL && strlen(current->text) > mwidth - 2) strabslen = mwidth - 2;
 		else strabslen = 255;
 
-		wattrset(menu->window, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+		wattrset(menu->window, MENU_COLOR);
 		wattron(menu->window, A_REVERSE);
 		box(menu->window,0,0);
 		while (current != NULL){
@@ -575,27 +578,27 @@ void print_menu(menu *menu){
 			text[i] = 0;	
 
 			if ((current->option) & M_DIVIDER){
-				wattrset(menu->window, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+				wattrset(menu->window, MENU_COLOR);
 				wattron(menu->window, A_REVERSE);
 	                	mvwhline(menu->window, ypos+1, 1, 0, mwidth-2);
 			}
 			else {
 				if (current == menu->selected){
-					wattrset(menu->window, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+					wattrset(menu->window, MENU_COLOR);
 					wattron(menu->window, A_NORMAL);
 					mvwaddstr(menu->window, ypos+1, 1, text);
 				} 
 				else if ((current->option) & M_SELECTABLE){
-					wattrset(menu->window, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+					wattrset(menu->window, MENU_COLOR);
 					wattron(menu->window, A_REVERSE);
        		                 	mvwaddstr(menu->window, ypos+1, 1, text);
        		         	}
 				else{
-					wattrset(menu->window, COLOR_PAIR(MENU_COLOR_DIM_B*16+MENU_COLOR_DIM_F));
+					wattrset(menu->window, MENU_COLOR);
 					wattron(menu->window, A_REVERSE);
 					wattron(menu->window, A_DIM);
                		         	mvwaddstr(menu->window, ypos+1, 1, text);
-					wattrset(menu->window, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+					wattrset(menu->window, MENU_COLOR);
 					wattron(menu->window, A_REVERSE);
                 		}
 			}
@@ -633,7 +636,7 @@ WINDOW *print_sub_menu(WINDOW *screen, menu *menu){
 	mstarty = menu->starty;
 
 	menuwin = subwin(screen, mheight, mwidth, mstarty, mstartx);
-	wattrset(menuwin, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+	wattrset(menuwin, MENU_COLOR);
 	wattron(menuwin, A_REVERSE);
 	box(menuwin,0,0);
 
@@ -654,27 +657,27 @@ WINDOW *print_sub_menu(WINDOW *screen, menu *menu){
 		text[i] = 0;
 
 		if ((current->option) & M_DIVIDER){
-			wattrset(menuwin, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+			wattrset(menuwin, MENU_COLOR);
 			wattron(menuwin, A_REVERSE);
                 	mvwhline(menuwin, ypos+1, 1, 0, mwidth-2);
 		}
 		else {
 			if (current == menu->selected){
-				wattrset(menuwin, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+				wattrset(menuwin, MENU_COLOR);
 				wattron(menuwin, A_NORMAL);
 				mvwaddstr(menuwin, ypos+1, 1, text);
 			} 
 			else if ((current->option) & M_SELECTABLE){
-				wattrset(menuwin, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+				wattrset(menuwin, MENU_COLOR);
 				wattron(menuwin, A_REVERSE);
                         	mvwaddstr(menuwin, ypos+1, 1, text);
                 	}
 			else{
-				wattrset(menuwin, COLOR_PAIR(MENU_COLOR_DIM_B*16+MENU_COLOR_DIM_F));
+				wattrset(menuwin, MENU_COLOR);
 				wattron(menuwin, A_REVERSE);
 				wattron(menuwin, A_DIM);
                         	mvwaddstr(menuwin, ypos+1, 1, text);
-				wattrset(menuwin, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+				wattrset(menuwin, MENU_COLOR);
 				wattron(menuwin, A_REVERSE);
                 	}
 		}
@@ -701,7 +704,7 @@ void print_menubar(menuwin *menuline, menubar *menubar){
         if (menuline_update_status(menuline) & U_ALL_REFRESH){
                                         
                 // clear the menuline
-                wattrset(menuline->menuline, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+                wattrset(menuline->menuline, MENU_COLOR);
                 wattron(menuline->menuline, A_REVERSE);
                                         
                 for (i=0; i<COLS; i++) mvwaddch(menuline->menuline, 0, i, ' ');
@@ -713,17 +716,17 @@ void print_menubar(menuwin *menuline, menubar *menubar){
                 for (i=0; i < menuentries; i++){
                         cmenu = (menubar->menu)[i];
                         cmenutitle = cmenu->name;
-                        wattrset(menuline->menuline, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+                        wattrset(menuline->menuline, MENU_COLOR);
                         wattron(menuline->menuline, A_REVERSE);
                         k = 0;
                         for (j = 0; j < strlen(cmenutitle); j++){
                                 if (toupper(cmenutitle[j]) == toupper ((unsigned char)(cmenu->key)) && k == 0){
-                                        wattrset(menuline->menuline, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+                                        wattrset(menuline->menuline, MENU_COLOR);
                                         wattron(menuline->menuline, A_BOLD);
                                         wattron(menuline->menuline, A_STANDOUT);
                                         wattron(menuline->menuline, A_REVERSE);
                                         mvwaddch(menuline->menuline, 0, posx, cmenutitle[j]);
-                                        wattrset(menuline->menuline, COLOR_PAIR(MENU_COLOR_B*16+MENU_COLOR_F));
+                                        wattrset(menuline->menuline, MENU_COLOR);
                                         wattron(menuline->menuline, A_REVERSE);
                                         k = 1;
                                 }
