@@ -1,5 +1,12 @@
+Version 0.21a Alpha: Nov 21, 2004
+Bug fixes and new functionality
+
+- Pressing a key in a list now jumps to next entry starting with that key
+- Fixed a bug in ignore list code
+- Fixed minor issues with scrolling in channel lists
+
 Version 0.20a Alpha: Nov 12, 2004
-More Minor Bug Fixes
+More minor bug fixes
 
 - Now preserving sort order of lists when saving configuration  
 - Fixed sorting and status changes in channel screen user lists
@@ -7,7 +14,7 @@ More Minor Bug Fixes
 - Corrected the function of Ctrl-Y and Ctrl-V keys in channel list screens
 
 Version 0.19a Alpha: Nov 5, 2004
-Minor Bug Fixes
+Minor bug fixes
 
 - Fixed scrolling in the transfer window
 - Added a SIGPIPE signal handler 
@@ -15,5 +22,5 @@ Minor Bug Fixes
 - Fixed progress bar accuracy
  
 Version 0.18a Alpha: Nov 1, 2004
-Initial Alpha release
+Initial alpha release
 

@@ -80,6 +80,7 @@ char get_user_status(channel *C, char *nick, int *op, int *voice);
 
 void select_next_user(channel *C);
 void select_prev_user(channel *C);
+void select_next_user_by_key(channel *C, int key);
 char *selected_channel_nick(channel *C);
 
 void end_channel(channel *C);
@@ -162,6 +163,7 @@ int print_list_pos_attrib(list *L, char *buffer, int x, int y, int attrib, int o
 void apply_list_view(list *L, char *search, int minusers, int maxusers, int sorttype);
 void select_prev_list_channel(list *L);
 void select_next_list_channel(list *L);
+void select_next_list_channel_by_key(list *L, int key);
 void refresh_channel_list(list *L);
 int add_list_channel(list *L, char *channel, int users, char *description, int sorttype);
 

@@ -791,7 +791,8 @@ Flistline *add_Flistline(Flist *list, int id, char *string, void *ptrid, int typ
 
 int process_Flist_events(Flist *F, int event){
 	int i, offset;
-	Flistline *current;
+	Flistline *current, *topentry;
+        int topnum, found;
 
 	if (event == KEY_UP && F->selected != NULL){
 	
@@ -837,13 +838,66 @@ int process_Flist_events(Flist *F, int event){
 		while(current != NULL){
 			if (current == F->top) break;
 			else if (current == F->selected){
-				// selected is below the last visible line, scroll up
+				// selected is below the last visible line, scroll down
 				F->top = F->top->next;
 				break;
 			}
 			current = current->next;
 		}
 
+		return(E_NONE);
+	}
+
+	/* if a key is pressed other than up or down, jump to next entry starting with key */
+	else if (isprint(event) && F->selected != NULL){
+		topnum = -1;
+		i = 0;
+
+		/* select the next channel name that starts with key */
+		if (F->selected->next != NULL) current = F->selected->next;
+		else current = F->list;
+        
+		found = 0;
+		while (current != NULL){        
+			if (event == current->text[0]){
+				found = 1;
+				F->selected = current;
+				break;
+			}
+			current = current->next;
+		}
+                 
+        	/* if the key is not found in the first scan, scan once more from top */
+        	if (!found){    
+			current = F->list;
+			while (current != NULL){
+				if (event == current->text[0]){
+					found = 1;
+					F->selected = current;
+					break;
+				}
+				current = current->next;
+			}
+		}
+
+		/* make sure that the window dimensions still display the selected entry */
+		current = F->list;
+		topentry = F->top;
+        	if (topentry == NULL) topentry = F->list;
+
+		while(current != NULL){
+			if (current == F->top) topnum = i;
+			if (topnum != -1 && i >= topnum + F->height){
+				if (F->top->next != NULL) F->top = F->top->next;
+				topnum++;
+			}
+	                if (current == F->selected){
+	                        if (topnum == -1) F->top = F->selected;
+	                        break;
+			}
+	                current = current->next;
+        	        i++;
+		}
 		return(E_NONE);
 	}
 	return(event);

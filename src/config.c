@@ -451,7 +451,7 @@ int config_user_exists(config *C, int listnum, char *name){
 	else current = C->userignored;
 
 	while(current != NULL){
-		if (string_match(current->name, name)){
+		if (string_match(name, current->name)){
 			return(1);
 		}
 		current = current->next;
@@ -466,7 +466,7 @@ int config_user_exists_exact(config *C, int listnum, char *name){
 	else current = C->userignored;
 
 	while(current != NULL){
-		if (strcmp(current->name, name) == 0){
+		if (strcmp(name, current->name) == 0){
 			return(1);
 		}
 		current = current->next;
@@ -477,9 +477,10 @@ int config_user_exists_exact(config *C, int listnum, char *name){
 int string_match(char *str, char *exp){
 	int i;
 
-	//printf("%d %d \n",str[0], exp[0]);
+	// vprint_all("Strings \"%s\" -> \"%s\"\n",str, exp);
+	// vprint_all("Chars   '%c' -> '%c'\n",str[0], exp[0]);
 	if (exp[0] == '*'){
-		if (strlen(exp) == 1) return(1);    
+		if (strlen(exp) == 1) return(1);    			
 		for (i=0; i<strlen(str); i++){
 			if (string_match(&str[i], &exp[1]) == 1) return(1);
 		}
@@ -493,25 +494,6 @@ int string_match(char *str, char *exp){
 }
 
 /** file ops *************************************************************************/
-
-
-void print_config_info(config *C){
-	config_server *current;
-
-	printf ("Nick			: %s\n", C->nick);
-	printf ("Alterenate Nick		: %s\n", C->alt_nick);
-	printf ("------------------------\n");
-	printf ("Username		: %s@%s.%s\n", C->user, C->hostname, C->domain);
-	printf ("Name			: %s\n", C->userdesc);
-	printf ("------------------------\n");
-	if (C->serverfavorite != NULL) printf ("Current Server		: %s\n", (C->serverfavorite)->name);
-	
-	current = C->serverfavorite;
-	while(current != NULL){
-		printf ("			: %s:%u\n", current->name, current->port);
-		current = current->next;
-	}
-}	
 
 server *new_server_config_connect(config *C){
 	server *S;
@@ -532,13 +514,6 @@ server *new_server_config(config *C){
 	S = add_server("", 0, C->nick, C->user, C->hostname, C->domain, C->userdesc);
 	return (S);
 }
-
-//int main(){
-//	config C;
-//	
-//	read_config("", &C);
-//	print_config_info(&C);
-//}	
 
 int writeconfig(char *config_file, config *C){
 	FILE *fp;
@@ -607,7 +582,7 @@ int writeconfig(char *config_file, config *C){
 	fprintf(fp, "\n");
 
 
-	fprintf(fp, "# As is the favorite user list\n");
+	fprintf(fp, "# Favorite user list is contained within curly brackets as well.\n");
 	fprintf(fp, "nick {\n");
 	curr_user = C->userfavorite;
 	while(curr_user != NULL){
@@ -617,7 +592,7 @@ int writeconfig(char *config_file, config *C){
 	fprintf(fp, "}\n");
 	fprintf(fp, "\n");
 
-	fprintf(fp, "# And the user ignore list\n");
+	fprintf(fp, "# User ignore list is contained within curly brackets as well.\n");
 	fprintf(fp, "ignore {\n");
 	curr_user = C->userignored;
 	while(curr_user != NULL){

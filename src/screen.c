@@ -1006,12 +1006,12 @@ void select_next_user(channel *C){
 	topnum = -1;
 	i = 0;
 
-	// select the next user
+	/* select the next user */
 	if ((C->selected)->next != NULL){
 		C->selected = C->selected->next;
 	}
 
-	// make sure that the window dimensions still display the user
+	/* make sure that the window dimensions still display the user */
         
 	current = C->userlist;
         topuser = C->top;
@@ -1040,13 +1040,13 @@ void select_prev_user(channel *C){
 	topnum = -1;
 	i = 0;
 
-	// select the previous user
+	/* select the previous user */
 	if ((C->selected)->prev != NULL){
 		C->selected = C->selected->prev;
 	}
 
-	// make sure that the window dimensions still display the user
-        
+	/* make sure that the window dimensions still display the user */
+      
 	current = C->userlist;
         topuser = C->top;
 	if (topuser == NULL) topuser = C->userlist; 
@@ -1068,15 +1068,66 @@ void select_prev_user(channel *C){
 
 }
 
+void select_next_user_by_key(channel *C, int key){
+        user *current, *topuser;
+	int found, topnum, i;
+
+	topnum = -1;
+	i = 0;
+
+
+	/* find the user that starts with character key */
+	if (C->selected->next != NULL) current = C->selected->next;
+	else current = C->userlist;
+
+	found = 0;
+	while (current != NULL){
+		if (key == current->nick[0]){
+			found = 1;
+			C->selected = current;
+			break;
+		}
+		current = current->next;
+	}
+	/* if match not found, start again from top */ 
+	if (!found){
+		current = C->userlist;
+		while (current != NULL){
+			if (key == current->nick[0]){
+				found = 1;
+				C->selected = current;
+				break;
+			}
+			current = current->next;
+		}
+	}	
+
+	/* make sure that the window dimensions still display the user */
+        
+	current = C->userlist;
+        topuser = C->top;
+	if (topuser == NULL) topuser = C->userlist; 
+
+	while(current!=NULL){
+		if (current == C->top) topnum = i;
+                if (topnum != -1 && i >= topnum + (LINES - 3)){
+			if ((C->top)->next != NULL) C->top = (C->top)->next;
+			topnum++;
+		}
+                if (current == C->selected){
+			if (topnum == -1) C->top = C->selected;
+			break;
+		}
+                current=current->next;
+		i++; 
+        }
+	set_channel_update_status(C, U_USER_REFRESH);
+}
+
 char *selected_channel_nick(channel *C){
 	if (C != NULL){
 		if ((C->selected) != NULL){
-			//if ((C->selected)->nick[0] == '+' || (C->selected)->nick[0] == '@'){
-			//	return((C->selected)->nick + 1);
-			//}
-			//else {
-				return((C->selected)->nick);
-			//}
+			return((C->selected)->nick);
 		}
 	}
 	return(NULL);
@@ -1518,6 +1569,7 @@ void refresh_channel_list(list *L){
 
 int add_list_channel(list *L, char *channel, int users, char *description, int type){
 	list_channel *current, *last, *new;
+	int topnum, selectednum, i;
 
 	if (L == NULL) return(0);
 	new = calloc(sizeof(list_channel), 1);
@@ -1569,7 +1621,15 @@ int add_list_channel(list *L, char *channel, int users, char *description, int t
 		/* insert into alphabetical (main) list */
 		current = L->alphalist;
 		last = L->alphalist;
+
+		i = 0;
+		selectednum = -1;
+		topnum = -1;
+
 		while (current != NULL){
+			if (current == L->selected) selectednum = i;
+			else if (current == L->top) topnum = i;
+
 			if (strcmp(current->channel, channel) > 0){
 				new->alphaprev = current->alphaprev;
 				new->alphanext = current;
@@ -1584,6 +1644,7 @@ int add_list_channel(list *L, char *channel, int users, char *description, int t
 					if (L->top == current) L->top = new;
 					if (L->selected == current) L->selected = new;
 					if (is_channel_in_list_view(L, new)) set_list_update_status(L, U_ALL_REFRESH);
+					if (topnum >= 0 && selectednum == -1 && L->top->viewnext != NULL) L->top = L->top->viewnext;
 				}
 
 				current->alphaprev = new;
@@ -1593,6 +1654,7 @@ int add_list_channel(list *L, char *channel, int users, char *description, int t
 			}
 			last = current;
 			current = current->alphanext;
+			i++;
 		}
 
 		/* end of alpha list */
@@ -1612,7 +1674,11 @@ int add_list_channel(list *L, char *channel, int users, char *description, int t
 		/* insert into user sorted list */
 		current = L->userlist;
 		last = L->userlist;
+		i = 0;
 		while (current != NULL){
+			if (current == L->selected) selectednum = i;
+			else if (current == L->top) topnum = i;
+
 			if (current->users > users){
 				new->userprev = current->userprev;
 				new->usernext = current;
@@ -1627,6 +1693,7 @@ int add_list_channel(list *L, char *channel, int users, char *description, int t
 					if (L->top == current) L->top = new;
 					if (L->selected == current) L->selected = new;
 					if (is_channel_in_list_view(L, new)) set_list_update_status(L, U_ALL_REFRESH);
+					if (topnum >= 0 && selectednum == -1 && L->top->viewnext != NULL) L->top = L->top->viewnext;
 				}
 				current->userprev = new;
 				if (L->userlist == current) L->userlist = new;
@@ -1635,6 +1702,7 @@ int add_list_channel(list *L, char *channel, int users, char *description, int t
 			}
 			last = current;
 			current = current->usernext;
+			i++;
 		}
 		if (current == NULL){
 			last->usernext = new;
@@ -1744,6 +1812,63 @@ void select_prev_list_channel(list *L){
 
 }
 
+void select_next_list_channel_by_key(list *L, int key){
+        list_channel *current, *topchannel;
+	int topnum, i;
+	int found;
+	
+	topnum = -1;
+	i = 0;
+
+	/* select the next channel name that starts with key */
+	if ((L->selected)->viewnext != NULL) current = L->selected->viewnext;
+	else current = L->view;
+
+	found = 0;
+	while (current != NULL){
+		if (key == current->channel[1]){
+			found = 1;
+			L->selected = current;
+			break;
+		}
+		current = current->viewnext;
+	}
+
+	/* if the key is not found in the first scan scan once more from top */
+	if (!found){
+		current = L->view;
+		while (current != NULL){
+			if (key == current->channel[1]){
+				found = 1;
+				L->selected = current;
+				break;
+			}
+			current = current->viewnext;
+		}
+	}
+
+	/* make sure that the window dimensions still display the selected channel */
+        
+	current = L->view;
+        topchannel = L->top;
+	if (topchannel == NULL) topchannel = L->view; 
+
+	while(current != NULL){
+		if (current == L->top) topnum = i;
+                if (topnum != -1 && i >= topnum + (LINES - 3)){
+			if ((L->top)->viewnext != NULL) L->top = (L->top)->viewnext;
+			topnum++;
+		}
+                if (current == L->selected){
+			if (topnum == -1) L->top = L->selected;
+			break;
+		}
+                current = current->viewnext;
+		i++; 
+        }
+	set_list_update_status(L, U_MAIN_REFRESH);
+}
+
 void select_prev_list_channel_page(list *L){
 	int i;
 	for (i = 0; i < LINES - 4; i++) select_prev_list_channel(L);
@@ -1765,119 +1890,7 @@ void apply_list_view(list *L, char *search, int minusers, int maxusers, int sort
 	if (L->list == NULL) return;
         wclear(L->message);
 
-#ifdef DEFUNCT_SORT
-	// outer is the end of unsorted list
-	outer = NULL;
-
-	if (sorttype == LIST_SORT_USERS){
-		while (1){
-			i++;
-			j = 0;
-			/* beginning of list, special case */
-			current = (L->list)->next;
-			if (current != NULL){
-				last = current->prev;
-				next = current->next;
-				if (current->users > last->users){
-					L->list = current;
-					current->next = last;
-					current->prev = last->prev;
-					last->prev = current;
-					last->next = next;
-					if (next != NULL) next->prev = last;
-				}
-				current = next;			
-			}
-			/* do the rest of the list */
-			while (current != outer && current != NULL){
-				j++;
-				last = current->prev;
-				next = current->next;
-				if (current->users > last->users){
-					(last->prev)->next = current;
-					current->next = last;
-					current->prev = last->prev;
-					last->prev = current;
-					last->next = next;
-					if (next != NULL) next->prev = last;
-				}
-				current = next;
-			}
-
-			vprint_all("%d/%d, ", j, i);
-
-			// outer is second last unsorted entry
-			if (outer == NULL) outer = last;
-			else outer = outer->prev;
-			if (outer == L->list || outer == NULL) break;
-		}
-	}
-
-	if (sorttype == LIST_SORT_USERS){
-		while (1){
-			current = (L->list)->next;
-			while (current != outer && current != NULL){
-				last = current->prev;
-				next = current->next;
-				if (current->users > last->users){
-
-					// if sorting beginning of the list, swap head	
-					if (last->prev == NULL) L->list = current;
-					else (last->prev)->next = current;
-				
-					current->next = last;
-					current->prev = last->prev;
-					last->prev = current;
-					last->next = next;
-					if (next != NULL) next->prev = last;
-					last = current->prev;
-				}
-				current = next;
-			}
-
-			// outer is second last unsorted entry
-			if (outer == NULL) outer = last;
-			else outer = outer->prev;
-			if (outer == L->list || outer == NULL) break;
-		}
-	}
-
-	else if (sorttype == LIST_SORT_CHANNEL){
-		while (1){
-			current = (L->list)->next;
-			while (current != outer && current != NULL){
-				last = current->prev;
-				next = current->next;
-				if (strcmp(current->channel, last->channel) < 0){
-
-					// if sorting beginning of the list, swap head	
-					if (last->prev == NULL) L->list = current;
-					else (last->prev)->next = current;
-				
-					current->next = last;
-					current->prev = last->prev;
-					last->prev = current;
-					last->next = next;
-					if (next != NULL) next->prev = last;
-					last = current->prev;
-				}
-				current = next;
-			}
-
-			// outer is second last unsorted entry
-			if (outer == NULL) outer = last;
-			else outer = outer->prev;
-			if (outer == L->list || outer == NULL) break;
-		}
-	}		
-
-	/* not doing description sorting, it's pretty much pointless */
-	else if (sorttype == LIST_SORT_DESCRIPTION){
-	}		
-
-#endif
-
-	// now eliminate the non selected ones
+	/* now eliminate the non selected channels */
 	if (strcmp(search, "") == 0) searchon = 0;
 	else searchon = 1;
 

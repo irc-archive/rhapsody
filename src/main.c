@@ -776,6 +776,11 @@ int process_channel_events(int key){
 		set_channel_update_status(currentchannel, U_USER_REFRESH);
 	}
 
+	else if (isprint(key) && currentchannel->selecting == 1){
+		select_next_user_by_key(currentchannel, key);
+		set_channel_update_status(currentchannel, U_USER_REFRESH);
+	}
+
 	else if ((key == KEY_ENTER || key == 10) && currentchannel->selecting < 2){
 		if (currentchannel->selecting == 1){
 			currentchannel->selecting = 2;
@@ -1344,6 +1349,7 @@ int process_list_events(int key){
 		print_inputline(inputline);
 		return(key);
 	}		
+	else if (isprint(key)) select_next_list_channel_by_key(currentlist, key);
 
 	// update the menu selection screen if required
 	curs_set(0);
