@@ -550,7 +550,7 @@ int get_dccack(dcc_file *D){
 
 	if (D->type==DCC_SEND){
 		/* get the 4 ack bytes */
-		len = recv(D->dccfd, ackbuffer, 4, MSG_DONTWAIT);
+		len = recv(D->dccfd, ackbuffer, 4, 0);
 		if (len == 4){
 
 			ack = ackbuffer[3];

@@ -10,10 +10,10 @@ FLAGS=$(BASEFLAGS) $(LOCALFLAGS)
 OBJECTS=screen.o log.o network.o parser.o ctcp.o dcc.o ncolor.o main.o cmenu.o config.o forms.o option.o
 
 
-all: autodefs.h rhapsody
+all: autodefs.h $(PROGRAMNAME)
 
-rhapsody: $(OBJECTS)
-	$(CC) $(FLAGS) -o rhapsody $(OBJECTS) $(LIBPATHS) $(LIBS)
+$(PROGRAMNAME): $(OBJECTS)
+	$(CC) $(FLAGS) -o $(PROGRAMNAME) $(OBJECTS) $(LIBPATHS) $(LIBS)
 
 log.o: log.c log.h defines.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
@@ -64,5 +64,5 @@ autodefs.h:
 	@echo "*** Please run configure from the top most directory. ***"
 
 clean:
-	rm -f rhapsody *.o plog.log core*
+	rm -f $(PROGRAMNAME) *.o plog.log core*
 

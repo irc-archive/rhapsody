@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PROGRAMNAME="rhapsody"
-PROGRAMVER="0.21a"
+PROGRAMVER="0.22a"
 
 ###########################################################
 # Get command line parameters                             #
@@ -50,10 +50,11 @@ echo "Rhapsody IRC configure script version $PROGRAMVER."
 echo "run \"configure --help\" to get a list of available configuration options."
 
 OS=`uname -s`
+OSNAME=`uname -o`
 OSVER=`uname -r`
 USER=`whoami`
 
-echo "The OS appears to be $OS version $OSVER."
+echo "The OS appears to be $OS ($OSNAME) version $OSVER."
 echo ""
 
 
@@ -89,6 +90,7 @@ echo ""
 
 if [ $OS = "Linux" ] ; then
 	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
 	BASELIBS="-lncurses"
 	BASELIBPATHS="-L/usr/lib"
 	BASEINCPATHS="-I/usr/include"
@@ -113,7 +115,7 @@ elif [ $OS = "OpenBSD" -o $OS = "FreeBSD" -o $OS = "NetBSD" ] ; then
 	BASELIBS="-lncurses" 
 	BASELIBPATHS="-L/usr/lib"
 	BASEINCPATHS="-I/usr/include"
-	BASEFLAGS=""
+	BASEFLAGS=""	
 elif [ $OS = "IRIX64" ] ; then
 	CCPATH="/usr/freeware/bin /usr/bin"
 	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
@@ -128,13 +130,23 @@ elif [ $OS = "IRIX" ] ; then
 	BASELIBPATHS="-L/usr/freeware/lib32"
 	BASEINCPATHS=""
 	BASEFLAGS="-mabi=n32"
-else
+elif [ $OSNAME = "Cygwin" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+	BASELIBS="-lncurses" 
+	BASELIBPATHS="-L/usr/lib -L/lib"
+	BASEINCPATHS=""
+	BASEFLAGS=""
+	PROGRAMNAME="rhapsody.exe"
+else	
 	echo "This OS is not currently supported, but I will try to make it work."
 	CCPATH="/bin /sbin /usr/bin /usr/sbin/ /usr/local/bin/ /usr/local/sbin" 
+	CURSESPATH="/include /usr/include /include/ncurses /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
 	BASELIBS="-lncurses"
 	BASELIBPATHS="-L/usr/lib"
 	BASEINCPATHS="-I/usr/include -I/include"
 	BASEFLAGS=""
+	BASEOS=$OS
 fi 
 
 
@@ -179,6 +191,14 @@ for CURRPATH in $CURSESPATH ; do
 	fi
 done
 
+if [ -z "$CURSESHEADERPATH" ] ; then
+	echo ""
+	echo "WARNING: Unable to find ncurses.h. Rhapsody may not compile."
+	echo "         Please check your system configuration and provide the path to" 
+	echo "         the file with the -h option."
+fi
+			
+
 
 
 ###########################################################
@@ -188,6 +208,7 @@ done
 cd src
 
 echo "OS=$OS" > Makefile.inc
+echo "BASEOSNAME=$OSNAME" > Makefile.inc
 echo "CC=$COMPILER" >> Makefile.inc
 echo "BASELIBS=$BASELIBS" >> Makefile.inc
 echo "BASELIBPATHS=$BASELIBPATHS" >> Makefile.inc

@@ -1,0 +1,17 @@
+Thanks for trying Rhapsody IRC.
+
+To compile and install, run "configure", then "make clean", "make", and 
+optionally "make install". For more information on the installation process 
+see the INSTALL file inside the docs directory. If you have not yet done so,
+please review the software license which can be found in the file COPYING,
+also in the docs directory.
+
+Files:
+
+README		This file.
+configure	Configuration script.
+Makefile	Top level makefile.
+docs/		Information and documentation.
+src/		Rhapsody source files.
+help/		Rhapsody help files for use from within the program.
+

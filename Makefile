@@ -1,26 +1,25 @@
 include src/Makefile.inc
 
-all:
-	cd src; make
-	cp src/rhapsody .
+all:	$(PROGRAMNAME)
+#	cd src; make
+#	cp src/$(PROGRAMNAME) .
 
-all2: src/Makefile.inc rhapsody
 
-rhapsody: src/rhapsody
-	cp src/rhapsody .
+$(PROGRAMNAME): src/rhapsody
+	cp src/$(PROGRAMNAME) .
 
 src/rhapsody:
 	cd src; make
 
-install: $(PROGNAME)
+install: $(PROGRAMNAME)
 	mkdir -p $(INSTALLPATH)
 	mkdir -p $(INSTALLPATH)/help
-	cp rhapsody $(INSTALLPATH)
+	cp $(PROGRAMNAME) $(INSTALLPATH)
 	cp help/*.hlp $(INSTALLPATH)/help
 
 clean:
 	cd src; make clean
-	rm -f rhapsody
+	rm -f $(PROGRAMNAME)
 
 src/Makefile.inc:
 	./configure
@@ -38,6 +37,7 @@ tar:
 	cp docs/* rhapsody-$(PROGRAMVER)/docs
 	cp Makefile rhapsody-$(PROGRAMVER)
 	cp configure rhapsody-$(PROGRAMVER)
+	cp README rhapsody-$(PROGRAMVER)
 	tar -czvf rhapsody_$(PROGRAMVER).tgz rhapsody-$(PROGRAMVER)
 
 
