@@ -1,0 +1,212 @@
+#!/bin/sh
+
+PROGRAMNAME="rhapsody"
+PROGRAMVER="0.18a"
+
+###########################################################
+# Get command line parameters                             #
+###########################################################
+
+LASTPARAM=""
+while [ $# -gt 0 ] ; do
+	LASTPARAM=$1
+	shift
+
+	case $LASTPARAM in
+		-i)
+			INSTALLPATH=$1
+			shift
+			;;
+		-h)
+			ADDTLHEADERPATH=$1
+			shift
+			;;
+		-l)
+			ADDTLLIBPATH=$1
+			shift
+			;;
+		--help)
+			echo "Usage: configure [-i install-path] [-h header-path] [-l library-path]"
+			echo "where	install-path is the alternate installation directory."
+			echo "	header-path is the location of ncurses header files."
+			echo "	library-path is the location of the ncurses library."
+			echo ""
+			exit
+			;;
+		*)
+			echo "Option $LASTPARAM is not a valid command line option"
+			exit -1
+			;;
+	esac
+done
+
+
+###########################################################
+# Get the operating system name and version               #
+###########################################################
+
+echo ""
+echo "Rhapsody IRC configure script version $PROGRAMVER."
+echo "run \"configure --help\" to get a list of available configuration options."
+
+OS=`uname -s`
+OSVER=`uname -r`
+USER=`whoami`
+
+echo "The OS appears to be $OS version $OSVER."
+echo ""
+
+
+###########################################################
+# Set the install path if not provided                    #
+###########################################################
+
+if [ -z "$INSTALLPATH" ] ; then 
+	if [ $USER = "root" ] ; then
+		echo "Running as root."
+		INSTALLPATH="/usr/local/bin"
+	else
+		echo "NOT RUNNING AS ROOT."
+		INSTALLPATH="$HOME/rhapsody"
+	fi
+	echo "Install path is \"$INSTALLPATH\"."
+	echo "You can override the default installation path by running:"
+	echo "configure -i <install-path>."
+else
+	echo "Install path is \"$INSTALLPATH\"."	
+fi
+
+if [ -n "$ADDTLHEADERPATH" ] ; then
+	echo "Additional header path is \"$ADDTLHEADERPATH\""
+	ADDTLHEADERPATH="-I$ADDTLHEADERPATH"
+fi
+if [ -n "$ADDTLLIBPATH" ] ; then
+	echo "Additional library path is \"$ADDTLLIBPATH\""
+	ADDTLLIBPATH="-L$ADDTLLIBPATH"
+fi
+echo ""
+
+
+if [ $OS = "Linux" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	BASELIBS="-lncurses"
+	BASELIBPATHS="-L/usr/lib"
+	BASEINCPATHS="-I/usr/include"
+	BASEFLAGS=""
+elif [ $OS = "SunOS" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
+	BASELIBS="-lncurses -lnsl -lsocket" 
+	BASELIBPATHS=""
+	BASEINCPATHS="-I/usr/local/include/"
+	BASEFLAGS=""
+elif [ $OS = "Darwin" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/sw/include /usr/include /sw/include/ncurses /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
+	INCPATH="/usr/include /usr/local/include"
+	BASELIBS="-lncurses" 
+	BASELIBPATHS="-L/sw/lib"
+	BASEINCPATHS=""
+	BASEFLAGS="-no-cpp-precomp"
+elif [ $OS = "OpenBSD" -o $OS = "FreeBSD" -o $OS = "NetBSD" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	BASELIBS="-lncurses" 
+	BASELIBPATHS="-L/usr/lib"
+	BASEINCPATHS="-I/usr/include"
+	BASEFLAGS=""
+elif [ $OS = "IRIX64" ] ; then
+	CCPATH="/usr/freeware/bin /usr/bin"
+	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+	BASELIBS="-lncurses" 
+	BASELIBPATHS="-L/usr/freeware/lib64"
+	BASEINCPATHS=""
+	BASEFLAGS="-mabi=64"
+elif [ $OS = "IRIX" ] ; then
+	CCPATH="/usr/freeware/bin /usr/bin"
+	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+	BASELIBS="-lncurses" 
+	BASELIBPATHS="-L/usr/freeware/lib32"
+	BASEINCPATHS=""
+	BASEFLAGS="-mabi=n32"
+else
+	echo "This OS is not currently supported, but I will try to make it work."
+	CCPATH="/bin /sbin /usr/bin /usr/sbin/ /usr/local/bin/ /usr/local/sbin" 
+	BASELIBS="-lncurses"
+	BASELIBPATHS="-L/usr/lib"
+	BASEINCPATHS="-I/usr/include -I/include"
+	BASEFLAGS=""
+fi 
+
+
+###########################################################
+# Get available compilers                                 #
+###########################################################
+
+for CURRPATH in $CCPATH ; do 
+	echo "Looking for compilers in $CURRPATH..."
+
+	if [ -z "$CC" ] ; then
+		CC=`ls $CURRPATH/cc 2>/dev/null`
+	fi
+
+	if [ -z "$GCC" ] ; then
+		GCC=`ls $CURRPATH/gcc 2>/dev/null`
+	fi
+	
+done
+
+if [ -n "$GCC" ] ; then
+	echo "Found gcc in $GCC, using gcc."
+	COMPILER=$GCC
+elif [ -n "$CC" ] ; then
+	echo "Found cc in $CC, using cc."
+	COMPILER=$CC
+fi
+
+
+###########################################################
+# Find ncurses.h if required                              #
+###########################################################
+
+for CURRPATH in $CURSESPATH ; do 
+	echo "Looking for curses headers in $CURRPATH..."
+
+	HEADER=`ls $CURRPATH/ncurses.h 2>/dev/null`
+	if [ -n "$HEADER" ] ; then
+		echo "Found ncurses.h in $CURRPATH"
+		CURSESHEADERPATH="-I$CURRPATH"
+		break
+	fi
+done
+
+
+
+###########################################################
+# Write Makefile.inc                                      #
+###########################################################
+
+cd src
+
+echo "OS=$OS" > Makefile.inc
+echo "CC=$COMPILER" >> Makefile.inc
+echo "BASELIBS=$BASELIBS" >> Makefile.inc
+echo "BASELIBPATHS=$BASELIBPATHS" >> Makefile.inc
+echo "BASEINCPATHS=$BASEINCPATHS $CURSESHEADERPATH $ADDTLHEADERPATH" >> Makefile.inc
+echo "BASEFLAGS=$BASEFLAGS" >> Makefile.inc
+echo "INSTALLPATH=$INSTALLPATH" >> Makefile.inc
+echo "PROGRAMVER=$PROGRAMVER" >> Makefile.inc
+echo "PROGRAMNAME=$PROGRAMNAME" >> Makefile.inc
+echo
+
+
+###########################################################
+# Write autodefs.h                                        #
+###########################################################
+
+echo "#define INSTALL_PATH \"$INSTALLPATH\"" > autodefs.h
+echo "#define PROGRAM_NAME \"$PROGRAMNAME\"" >> autodefs.h
+echo "#define PROGRAM_VERSION \"$PROGRAMVER\"" >> autodefs.h
+
+echo "Finished creating makefile, run 'make clean' then 'make' to compile, then"
+echo "finally 'make install' to install. The installation step is optional. You"
+echo "can run rhapsody from this directory once it is compiled."

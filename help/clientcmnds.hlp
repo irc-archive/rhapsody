@@ -1,0 +1,39 @@
+Client Commands
+
+This section describes client commands which are not part of the IRC protocol, but are used be the client to perform various tasks.
+
+7/server servername [serverport] or /connect servername [serverport]
+This command is used to connect the client to an IRC server. The servername is the IP or the domain name of the server, and serverport is the port on which the server is listening. The servername is mandatory, but serverport if ommited is assumed to be 6667, the standard irc port.
+
+7/disconnect
+Use this to disconnect from a server.
+
+7/close
+Close the current window. This is equivalent to pressing Ctrl-K.
+
+7/quit
+Exit back to shell. This wont exit immediately, and you'll be prompted with a dialog box to confirm this. In case your option settings have changed and autosave is off, you'll also be asked if you want to save your settings before exiting.
+
+7/chat nick [message] or /msg nick [message] or /message nick [message]
+Starts or continues a chat session with nick. If message is supplied it is also sent to nick. If this is a new session, a new window will be opened, otherwise the client will switch to the existing session window.
+
+7/dcc chat nick
+Starts or continues a DCC chat session with nick. If this is a new DCC session, a new window will be opened, otherwise the client will switch to the existing session window. The difference between this and a normal chat, is that with a DCC chat the communication is sent directly from client to client, and in a normal chat, the communication is relayed through the IRC server.
+
+7/dcc send nick filename
+Sends a file to nick using the DCC protocol. The filename is the absolute path of the file to be sent.
+
+7/ctcp nick message
+Sends a CTCP message to nick. The message can be any string but it is usually one of the following CTCP commands:
+
+PING - ping the remote client.
+VERSION - the version of the software.
+SOURCE - information on how to obtain the remote client software.
+FINGER - information about the remote user.
+CLIENTINFO - list CTCP capabilities of the remote client.
+
+It is up to the remote client to interpret and execute the above CTCP commands, but it is not mandatory. In fact, to increase security, many clients are confifured to ignore these requests.
+
+7/me message
+In a channel, this uses the CTCP ACTION command to format your message which describes your action. For example, if your nick is neo and you type /me likes IRC, the users in the channel will see "neo likes IRC".  
+

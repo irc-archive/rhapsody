@@ -1,0 +1,81 @@
+Common IRC Commands
+
+The following section describes IRC commands supported by most IRC servers. This is only a subset of the available commands. The entire list can be obtained by using /help or /helpserv when connected to the server. Some of these commands are intercepted by the client and checked for syntax. Extra parameters may also be provided by the client side. For example, the command /part requires the channel name to be included. If the channel name is ommited, the client will attempt to figure out the implied channel name and send it to the server.
+
+
+7/join channel
+The /join command will cause the client to join the requested channel. A new window will be created for the new channel only if the channel join is successful, otherwise a status message will be displayed indicating the reason for failure.
+Example: 3/join #chat
+
+
+7/part [channel] or /leave [channel]
+Used to leave a channel. The commands /part and /leave are functionally identical. If used at a channel screen, the channel name can be ommited, otherwise the name must be provided.
+Example: 3/part #chat 1or 3/leave #chat  
+
+
+7/quit [message]
+Causes the client to disconnect from servers and exit. If provided, the message is sent to the server describing the reason for quitting.
+Example: 3/quit need food!
+
+
+7/nick nickname
+Sends a change of nickname request to the server. If succesful, the new nick is set to nickname, otherwise the client is notified why the nickname could not be changed  
+Example: 3/nick newnick
+
+
+7/whois nickname or /whowas nickname
+Requests user information from the server for the user nickname. The command /whowas returns the same information as /whois for a user previously named nickname.
+Example: 3/whois nick  
+
+
+7/away [message]
+Sets or clears the away flag. If message is provided the flag is set, and message explains your reason for being away which would be shown in the returned /whois information. To clear the away flag use a plain /away without message.   
+Example: 3/away 1or 3/away watching a movie   
+
+
+7/invite nickname channel
+Invite a nickname to a channel, which sets the channel invite flag and sends out a notice of the invitation to nickname. To do this, you must be in the channel to which you are inviting.  
+Example: 3/invite nick #chat  
+
+
+7/kick channel nickname
+Kick or remove nickname from the requested channel. This is not a permanent ban. Unless the ban is created explicitly using the /mode command, nickname will be able to rejoin the channel right away. You must have op priviledges /mode +o to kick someone. 
+Example: 3/kick nick #chat
+
+
+7/mode channel|nickname [[+|-]modes [parameters]] 
+Sets or clears specific user and channel mode flags. A list of modes and parameters for each mode can be found below:
+
+b mask [reason] bans someone from a channel and displays the reason. 
+Example: 3/mode #chat +b *!*@*.foobar.com 1or 3/mode #chat +b nick 
+
+o nickname gives nickname channel operator priviledges. Channel ops have a '@' symbol before their nickname.
+Example: 3/mode #chat +o nick
+ 
+v nick voices someone in a channel, that is it allows someone to speak through ban and moderations. Voiced users have a '+' before their nickname. 
+Example: 3/mode #chat +v nick
+
+i channel makes channel invite-only. You must be an op and in the channel to perform this command. To join an invite-only channel a user must first be invited using the /invite command.
+Example: 3/mode #chat +i
+
+l limit sets channel limit to limit participants.
+Example: 3/mode #chat +l 22
+
+n Allows sending of messages and notices to the channel from the outside. 
+Example: 3/mode #chat +n
+
+m Sets channel to moderated mode. Only ops and voiced people can talk inside a moderated channel.
+Example: 3/mode #chat +m
+
+t Noone but the ops can change the channel topic.
+Example: 3/mode #chat +t
+
+p Sets channel to private mode.
+Example: 3/mode #chat +p
+
+s Channel is secret
+Example: 3/mode #chat +s
+
+k password Set a password, and password protect the channel.
+Example: 3/mode #chat +k rosebud
+

@@ -1,0 +1,81 @@
+Window Control Keys
+
+Ctrl-K: 7Kill current window. 
+Closes the current window and disconnects any open connections that belong to the window. Some windows such as the transfer and server windows are persistent and can not be killed.
+
+Ctrl-I or TAB: 7Next Window.
+Selects the next window in the window list.
+
+Ctrl-Z or BackTAB: 7Previous Window.
+Selects the previous window in the window list. The key BackTAB may bot be available on some terminals.
+
+Ctrl-Y or Page Up: 7Scroll one page up.
+Moves the cursor inside the current window a full page up. Some windows do not have scrollable text. On some terminals, Page Up may not be available so Ctrl-Y should be used instead.
+
+Ctrl-V or Page Down: 7Scroll one full page down
+Moves the cursor inside the current window a full page down. Some windows do not have scrollable text. On some terminals, Page Down may not be available so Ctrl-V should be used instead.
+
+Ctrl-F or Scroll Forward: 7Scroll one line down		
+Scroll window text one line down. If the Scroll Forward key is not available on your terminal, use Ctrl-F instead. 
+
+Ctrl-R or Scroll Back: 7Scroll one line up	
+Scroll window text one line up. If the Scroll Backward key is not available on your terminal, use Ctrl-R instead.
+
+Ctrl-L: 7Redraw
+Redraw the screen.
+
+Ctrl-X: 7Exit Program
+Disconnect from IRC and exit back to the shell.
+
+
+Input Keys:
+
+Up Arrow: 7Recall previously typed command.
+
+Down Arrow: 7Recall the next command.
+
+Left Arrow: 7Move cursor left.
+
+Right Arrow: 7Move cursor right.
+
+Home or Ctrl-A: 7Move to the beginning of the line.
+
+End or Ctrl-E: 7Move to the end of the line.
+
+
+Text Color and Attributes
+
+Ctrl-B: 7Toggle bold text.
+This is an example of bold text. The character 'B' is used to indicate that the bold attribute is being toggled, and will not be displayed in the final text. Some terminals may not support bold text.
+
+Ctrl-O: 7Toggle reversed text.
+This is an example of reversed text. The character 'O' is used to indicate that the reverse attribute is being toggled, and will not be displayed in the final text. Some terminals may not support reverse text.
+
+Ctrl-_: 7Toggle underlined text. 
+This is an example of underlined text. The character 'U' is used to indicate that the underline attribute is being toggled, and will not be displayed in the final text. Some terminals may not support underlined text.  
+
+Ctrl-C: 7Set text color.
+The color code ff,bb follows where ff and bb are a one or two digit foreground and background color codes. The character C followed by the color codes are is used to represent a color change. Color attributes are not supported on monochrome terminals. Background color changes will not be displayed for aesthetic reasons.
+
+7The Color Palette0:
+
+Code    Color            Displayed as
+   0    0White0            0White0 (default color)
+   1    1Black0            1White  
+   2    2Blue0             2Blue
+   3    3Green0            3Green
+   4    4Red0              4Red
+   5    5Brown0            5Brown0 (if available)
+   6    6Purple0           6Purple0 (if available)
+   7    7Orange0           7Orange0 (if available)
+   8    8Yellow0           8Yellow0 (if available)
+   9    9Light Green0      9Light Green0 (if available)
+  10    10Teal0             10Teal0 (if available)  
+  11    10Aqua0             10Aqua0 (if available)
+  12    12Light Blue0       11Light Blue0 (if available)
+  12    12Purple0           12Purple0 (if available)
+  13    13Pink0             13Pink0 (if available)
+  14    14Grey0             14Grey0 (if available)
+  15    15Light Grey0       15Light Gray (if avaiable)
+
+Colors and attributes can be combined to create different effects.
