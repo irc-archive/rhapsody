@@ -7,7 +7,7 @@
 #define CODE_VERSION PROGRAM_VERSION
 #define CODE_STATE "Beta"
 #define CODE_BUILD ""
-#define CODE_COPYRIGHT "2004"
+#define CODE_COPYRIGHT "2005"
 #define CODE_DEVELOPER "Adrian Gonera"
 #define CODE_ID CODE_NAME" Version "CODE_VERSION" "CODE_STATE
 

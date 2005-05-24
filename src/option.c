@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2004 Adrian Gonera                                         */
+/*  Copyright (C) 2005 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -1643,6 +1643,64 @@ int end_run(int key){
 		printf("\n");
 		exit(0);
 	}                 
+	else if (revent == E_CANCEL || revent == 27){
+		mainform = remove_form(mainform);
+		return(E_CANCEL);
+	}
+	print_form(mainform);
+	return(E_NONE);
+}
+
+/** exit last server  *******************************************************************************************/
+
+int end_last_server(int key){
+	void *comp;
+        int revent;
+               
+	if (mainform == NULL){
+		mainform = add_form("Close Last Server and Exit", 0x000, -1, -1, 30, 6, FORM_COLOR_MAIN, STYLE_TITLE);
+		comp = (void *) add_Fbutton("Close and Exit", 2, 4, 16, FORM_COLOR_BUTTON, E_EXIT, STYLE_CENTER_JUSTIFY);
+		add_form_component(mainform, comp, E_EXIT, F_BUTTON);
+		comp = (void *) add_Fbutton("Cancel", 20, 4, 8, FORM_COLOR_BUTTON, E_CANCEL, STYLE_CENTER_JUSTIFY);
+		add_form_component(mainform, comp, E_CANCEL, F_BUTTON);
+	}
+
+	revent = process_form_events(mainform, key);      
+
+	if (revent == E_EXIT){
+		curs_set(1);
+		endwin();
+		printf("\n");
+		exit(0);
+	}
+	else if (revent == E_CANCEL || revent == 27){
+		mainform = remove_form(mainform);
+		return(E_CANCEL);
+	}
+	print_form(mainform);
+	return(E_NONE);
+}
+
+/** exit last server  *******************************************************************************************/
+
+int end_server_screens(int key){
+	void *comp;
+        int revent;
+               
+	if (mainform == NULL){
+		mainform = add_form("Close All Server Windows", 0x000, -1, -1, 33, 6, FORM_COLOR_MAIN, STYLE_TITLE);
+		comp = (void *) add_Fbutton("Close All Windows", 2, 4, 19, FORM_COLOR_BUTTON, E_CLOSE, STYLE_CENTER_JUSTIFY);
+		add_form_component(mainform, comp, E_CLOSE, F_BUTTON);
+		comp = (void *) add_Fbutton("Cancel", 23, 4, 8, FORM_COLOR_BUTTON, E_CANCEL, STYLE_CENTER_JUSTIFY);
+		add_form_component(mainform, comp, E_CANCEL, F_BUTTON);
+	}
+
+	revent = process_form_events(mainform, key);      
+
+	if (revent == E_CLOSE){
+		mainform = remove_form(mainform);
+		return(E_CLOSE);
+	}
 	else if (revent == E_CANCEL || revent == 27){
 		mainform = remove_form(mainform);
 		return(E_CANCEL);

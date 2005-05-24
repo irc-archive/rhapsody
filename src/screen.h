@@ -7,8 +7,15 @@
 #define O_NOMONOCHROME 0x1000
 #define O_ALL 0xFFFF
 
+#define TRANSFER_SORT_ORDER 0x00
+#define SERVER_SORT_ORDER 0xf000
+#define CHANNEL_SORT_ORDER 0x02
+#define CHAT_SORT_ORDER 0x03
+#define LIST_SORT_ORDER 0x04
+#define DCCCHAT_SORT_ORDER 0xff02
+#define HELP_SORT_ORDER 0xff03
 
-screen *add_screen(void *screenptr, int type);
+screen *add_screen(void *screenptr, int type, screen *parent, int sortvalue, int flags);
 void remove_screen(screen *screenptr);
 
 int print_screen(WINDOW *win, char *buffer);	
@@ -41,6 +48,7 @@ int create_server_screen(server *S);
 int delete_server_screen(server *S);
 int redraw_server_screen(server *S);
 server *add_server(char *servername, int port, char *nick, char *user, char *host, char *domain, char *name);
+void end_server(server *C);
 void refresh_server_screen(server *S);
 
 void print_server(server *S, char *buffer);
@@ -59,8 +67,9 @@ void unset_server_update_status(server *S, int update);
 int create_channel_screen(channel *C);
 int delete_channel_screen(channel *C);
 int redraw_channel_screen(channel *C);
-void refresh_channel_screen(channel *C);
 channel *add_channel(char *channelname, server *server);
+void end_channel(channel *C);
+void refresh_channel_screen(channel *C);
 
 void refresh_user_list(channel *C);
 
@@ -86,7 +95,6 @@ void select_prev_user(channel *C);
 void select_next_user_by_key(channel *C, int key);
 char *selected_channel_nick(channel *C);
 
-void end_channel(channel *C);
 
 int channel_update_status(channel *S);
 void set_channel_update_status(channel *S, int update);
@@ -99,8 +107,9 @@ void unset_channel_update_status(channel *S, int update);
 int create_chat_screen(chat *C);
 int delete_chat_screen(chat *C);
 int redraw_chat_screen(chat *C);
-void refresh_chat_screen(chat *C);
 chat *add_chat(char *chatname, server *server);
+void end_chat(chat *C);
+void refresh_chat_screen(chat *C);
 
 void print_chat(chat *C, char *buffer);
 void print_chat_attrib(chat *C, char *buffer, int attrib);
@@ -109,7 +118,6 @@ void printmymsg_chat(chat *C, char *buffer);
 void vprint_chat_attrib(chat *C, int attrib, char *template, ...);
 void vprint_chat(chat *C, char *template, ...);
 
-void end_chat(chat *C);
 
 int chat_update_status(chat *S);
 void set_chat_update_status(chat *S, int update);
@@ -125,6 +133,7 @@ void refresh_dccchat_screen(dcc_chat *C);
 
 dcc_chat *add_incoming_dcc_chat(char *nick, char *dest, server *server, unsigned long hostip, unsigned short port);
 dcc_chat *add_outgoing_dcc_chat(char *nick, char *dest, server *server);
+void end_dccchat(dcc_chat *D);
 
 void printmsg_dcc_chat(dcc_chat *C, char *nick, char *buffer);
 void printmymsg_dcc_chat(dcc_chat *D, char *buffer);
@@ -135,7 +144,6 @@ void vprint_dcc_chat_attrib(dcc_chat *C, int attrib, char *template, ...);
 void vprint_dcc_chat(dcc_chat *C, char *template, ...);
 
 void disconnect_dccchat(dcc_chat *D);
-void end_dccchat(dcc_chat *D);
 
 int dccchat_update_status(dcc_chat *S);
 void set_dccchat_update_status(dcc_chat *S, int update);
@@ -160,6 +168,9 @@ void unset_transfer_update_status(transfer *S, int update);
 
 int create_list_screen(list *L);        
 list *add_list(server *server);
+void end_list(list *L);
+void refresh_chat_screen(chat *C);
+
 int redraw_list_screen(list *L);
 void refresh_list_screen(list *L);
 void print_list(list *L, char *buffer);
@@ -244,28 +255,4 @@ void set_statusline_update_status(statuswin *S, int update);
 void unset_statusline_update_status(statuswin *S, int update);
 int statusline_update_status(statuswin *S);
 
-
-/* misc **************************************************************************************************/
-
-
-void progress_bar(WINDOW *win, int posy, int posx, int size, int percent);
-
-server *server_by_name(char *servername);
-screen *server_screen_by_name(char *servername);
-
-channel *channel_by_name(char *channelname);
-screen *channel_screen_by_name(char *channelname);
-
-chat *chat_by_name(char *chatname);
-screen *chat_screen_by_name(char *chatname);
-
-dcc_chat *dcc_chat_by_name(char *chatname);
-screen *dcc_chat_screen_by_name(char *chatname);
-
-list *list_by_name(char *listname); 
-list *active_list_by_name(char *listname); 
-screen *list_screen_by_name(char *listname);
-
-transfer *transfer_by_name(char *name); 
-screen *transfer_screen_by_name(char *name);
 

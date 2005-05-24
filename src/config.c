@@ -93,7 +93,6 @@ int read_config(char *config_file, config *C){
 	C->kick_color = DEFAULT_KICK_COLOR;
 	C->mode_color = DEFAULT_MODE_COLOR;
 	C->invite_color = DEFAULT_INVITE_COLOR;
-
 	
 	assume_default_colors(C->win_color_fg, C->win_color_bg);
 	

@@ -1,3 +1,11 @@
+Version 0.25b Beta: May 23, 2005
+Multi server support
+- Added multiserver support
+- Fixed custom color change on startup
+- /names now resets the userlist
+- Corrected a problem displaying 8-bit ascii characters
+- Several memory leaks were patched when closing windows
+
 Version 0.24b Beta: Jan 3, 2005
 Lots of changes and bug fixes
 - Added server password support

@@ -7,7 +7,7 @@ LIBPATHS=$(BASELIBPATHS)
 INCPATHS=$(BASEINCPATHS)
 FLAGS=$(BASEFLAGS) $(LOCALFLAGS)
 
-OBJECTS=screen.o log.o network.o parser.o ctcp.o dcc.o ncolor.o main.o cmenu.o config.o forms.o option.o
+OBJECTS=screen.o log.o network.o parser.o ctcp.o dcc.o ncolor.o main.o cmenu.o config.o forms.o option.o comm.o misc.o
 
 
 all: autodefs.h $(PROGRAMNAME)
@@ -25,6 +25,9 @@ main.o: main.c main.h common.h defines.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 network.o: network.c network.h defines.h
+	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
+
+comm.o: comm.c comm.h defines.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 screen.o: screen.c screen.h common.h defines.h 
@@ -57,8 +60,8 @@ forms.o: forms.c forms.h defines.h
 option.o: option.c option.h defines.h common.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
-html: html.c 
-	$(CC) $(FLAGS) $(INCPATHS) -o $@ $<
+misc.o: misc.c misc.h defines.h common.h
+	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 autodefs.h:
 	@echo "*********************************************************"

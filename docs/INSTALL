@@ -52,6 +52,7 @@ work on:
 * Solaris
 * IRIX
 * BeOS (BONE required) and Zeta (use ./configure -i /boot/apps/rhapsody)
+* Hurd
 
 If the compilation fails on your OS for whatever reason, it's likely that
 your system doesn't have one or more of the required components, rhapsody
@@ -66,7 +67,7 @@ that comes with OSes like Solaris and IRIX.
 
 Ncurses Library and Header Files
 
-The program requires the ncurses library version 5.0 or later. You WILL
+The program requires the ncurses library version 5.1 or later. You WILL
 run into problems with earlier versions of ncurses. Ncurses can be found at 
 http://www.gnu.org/software/ncurses/
 
@@ -79,7 +80,7 @@ Compilation and Installation Problems
 This occurs when the compiler isn't able to find the ncurses.h header file
 and the configure script wasn't able to provide its location. If you
 encounter the above error during compilation make sure that you have the
-ncurses library version 5.0 or newer installed. Ncurses can be found at 
+ncurses library version 5.1 or newer installed. Ncurses can be found at 
 http://www.gnu.org/software/ncurses/. If ncurses is installed on your
 computer, and you know where the ncurses.h header file is located, run
 configure once again with the -h option and supply the location of the file.

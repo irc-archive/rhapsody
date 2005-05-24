@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2004 Adrian Gonera                                         */
+/*  Copyright (C) 2005 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -38,8 +38,6 @@
 #include <signal.h>
 #include <ctype.h>
 #include <pwd.h>
-#include <arpa/nameser.h>
-#include <resolv.h>
 #include <sys/utsname.h>
 
 #include "autodefs.h"
@@ -65,45 +63,8 @@
 #include "forms.h"
 #include "config.h"
 #include "option.h"
-
-// define active form ids
-#define CF_NEW_SERVER_CONNECT 1
-#define CF_FAVORITE_SERVER_CONNECT 2
-#define CF_EDIT_SERVER_FAVORITES 3
-
-#define CF_IDENTITY 10
-#define CF_DCC_OPTIONS 11
-#define CF_DCC_SEND_OPTIONS 12
-#define CF_CLIENT_OPTIONS 13
-#define CF_SCRIPT_OPTIONS 14
-#define CF_CTCP_OPTIONS 15
-#define CF_COLOR_OPTIONS 16
-#define CF_TERM_INFO 17
-
-#define CF_EDIT_CHANNEL_FAVORITES 20
-#define CF_JOIN 21
-#define CF_JOIN_FAVORITE 22
-
-#define CF_LIST_OPTIONS 30
-#define CF_CHANNEL_SELECT 32
-
-#define CF_EDIT_USER_FAVORITES 40
-#define CF_EDIT_USER_IGNORED 41
-#define CF_NEW_CHAT 42
-#define CF_FAVORITE_CHAT 43
-#define CF_NEW_DCC_CHAT 44
-#define CF_FAVORITE_DCC_CHAT 45
-#define CF_NEW_DCC_SEND 46
-#define CF_FAVORITE_DCC_SEND 47
-#define CF_DCC_SEND_FILE 48
-
-#define CF_HELP_ABOUT 50
-
-#define CF_FILE_TRANSFER 60
-#define CF_FILE_TRANSFER_INFO 61
-#define CF_FILE_ALLOW 62
-
-#define CF_EXIT 250
+#include "comm.h"
+#include "misc.h"
 
 menu *ServerMenu[6];
 menu *TransferMenu[4];
@@ -166,10 +127,9 @@ static char newuser[MAXDATASIZE];
 static char newfile[MAXDATASIZE];
 static char newpassword[MAXDATASIZE];
 static dcc_file *newdccfile = NULL;
-//static dcc_file *selectedfile = NULL;
+static server *gserver = NULL;
 
 menu *build_window_menu(int startx, int starty);
-//form *currentform;
 int sigkey;
 
 int main(int argc, char *argv[]){
@@ -183,6 +143,7 @@ int main(int argc, char *argv[]){
 	int key;
 	int i;
 	int configstat;
+	int numservers;
   
 	server *S;
 	screen *current, *tempscr;
@@ -242,22 +203,22 @@ int main(int argc, char *argv[]){
 	helpmenus = init_menubar(2, 3, 4, HelpMenu);
 	currentmenusline = servermenus;
 
-	S = add_server("", 0, "", "", "", "", "");
-
-	vprint_all("%s\n", CODE_ID);
-	vprint_all("Reading configuration from %s...", configfile);
-	configstat = read_config(configfile, &configuration);
-
-	//vprint_all("S %d-%s H %s, D %s\n", h_errno, hstrerror(h_errno), hostname, domain);
-
 	/* create a transfer screen and hide it by default */
 	transferscreen = add_transfer("transfers");
 	hide_screen(transfer_screen_by_name("transfers"), 1); 
 
+	S = add_server("", 0, "", "", "", "", "");
+	vprint_all("%s\n", CODE_ID);
+	vprint_all("Reading configuration from %s...", configfile);
+	configstat = read_config(configfile, &configuration);
+	assume_default_colors(configuration.win_color_fg, configuration.win_color_bg);
+
+	//vprint_all("S %d-%s H %s, D %s\n", h_errno, hstrerror(h_errno), hostname, domain);
+
 	set_menuline_update_status(menuline, U_ALL_REFRESH);
 	set_statusline_update_status(statusline, U_ALL_REFRESH);
 
-	currentscreen = screenlist;
+	// currentscreen = screenlist;
 	// update_current_screen();
 
 	bzero (inputbuffer, MAXDATASIZE);
@@ -288,7 +249,7 @@ int main(int argc, char *argv[]){
 			endwin();
 			refresh();
 			
-			current=screenlist;
+			current = screenlist;
 			while(current!=NULL){ 
 				set_screen_update_status(current, U_ALL_REFRESH);
 				redraw_screen(current);
@@ -372,29 +333,33 @@ int main(int argc, char *argv[]){
 
 		/* set all socket descriptors for server and dcc transfers */
 
+		numservers = 0;
 		current=screenlist;
 		while(current!=NULL){
 			if (current->type==SERVER){
 				// if connecting to the server, call the connect function
-				if (((server *)(current->screen))->connect_status >= 0){
-					connect_to_server((server *)(current->screen));
+				if (((server *)(current->info))->connect_status >= 0){
+					connect_to_server((server *)(current->info));
 					key = E_NOWAIT;
 				}
-				else if (((server *)(current->screen))->active){
-					sfd = ((server *)(current->screen))->serverfd;
+				else if (((server *)(current->info))->active){
+					sfd = ((server *)(current->info))->serverfd;
 					FD_SET(sfd, &readfds);
 					if (maxsfd<sfd) maxsfd=sfd;
 				}
+				((server *)(current->info))->servernum = numservers;
+				numservers++;
+				
 			}
 			if (current->type==DCCCHAT){
-				if (((dcc_chat *)(current->screen))->active){
-					sfd = ((dcc_chat *)(current->screen))->dccfd;
+				if (((dcc_chat *)(current->info))->active){
+					sfd = ((dcc_chat *)(current->info))->dccfd;
 					FD_SET(sfd, &readfds);
 					if (maxsfd<sfd) maxsfd=sfd;
 				}
 			}
 			if (current->type==TRANSFER){
-				currentdcc = ((transfer *)current->screen)->dcclist;
+				currentdcc = ((transfer *)current->info)->dcclist;
 				while(currentdcc!=NULL){
 					/* if receiving, worry about the incoming data */
 					if (currentdcc->active && currentdcc->type == DCC_RECEIVE){	
@@ -412,7 +377,13 @@ int main(int argc, char *argv[]){
 					currentdcc=currentdcc->next;
 				}
 			}
+
 			current=(current->next);
+		}
+		/* if there are no server screens, start another one */ 
+		if (numservers == 0){
+			add_server("", 0, "", "", "", "", "");
+			currentscreen = screenlist;
 		}
 
 		/* for NOWAIT perform the next operation right away */
@@ -428,29 +399,31 @@ int main(int argc, char *argv[]){
 		serr = select(maxsfd+1, &readfds, &writefds, NULL, &timeout);
 		
 		/* read from server and dcc sockets if ready */
-		current=screenlist;
-		while(current!=NULL){
+		current = screenlist;
+		while(current != NULL){
 			// if this is an active (non-disconnected) server and its socket is ready	
-			if (current->type == SERVER){				
-				if (serr > 0 && ((server *)(current->screen))->active &&
-				FD_ISSET(((server*)(current->screen))->serverfd, &readfds)) {		
-					serr=recv_line(((server *)(current->screen))->serverfd, buffer, MAXDATASIZE-1);
+			if (current->type == SERVER){
+				if (serr > 0 && ((server *)(current->info))->active && 
+					FD_ISSET(((server *)(current->info))->serverfd, &readfds)){		
+					serr = recv_line(((server *)(current->info))->serverfd, ((server *)(current->info))->buffer, 
+						&(((server *)(current->info))->bufferoffset), MAXDATASIZE - 1);
 					if (serr == -1){
 						// got disconnected, set server connect flags
-						((server *)(current->screen))->active = 0;
-						((server *)(current->screen))->connect_status = -1;
+						((server *)(current->info))->active = 0;
+						((server *)(current->info))->connect_status = -1;
 						set_statusline_update_status(statusline, U_ALL_REFRESH);
-						vprint_all_attrib(ERROR_COLOR, "Disconnected from %s\n", ((server *)(current->screen))->server);
+						vprint_server_attrib(((server *)(current->info)), ERROR_COLOR, 
+							"Disconnected from %s\n", ((server *)(current->info))->server);
 					}
 					if (serr == 0);					
-					else parse_message((server *)(current->screen), buffer);
+					else parse_message(((server *)(current->info)), ((server *)(current->info))->buffer);
 				}
 			}
 
 			/* if this is an active (started, non-disconnected) dcc chat and its socket is ready */
 
 			else if (current->type == DCCCHAT){
-				currentdccchat = current->screen;
+				currentdccchat = current->info;
 				if (serr > 0 && currentdccchat->active && FD_ISSET(currentdccchat->dccfd, &readfds)) {	
 
 					bzero(buffer, MAXDATASIZE);	
@@ -488,7 +461,6 @@ int main(int argc, char *argv[]){
 		while(currentdcc != NULL){
 			nextdcc = currentdcc->next;
 
-
 			/* if this is a send in progress, check to see if ack is waiting */
 			if (currentdcc != NULL){
 				if (serr > 0 && FD_ISSET(currentdcc->dccfd, &readfds)) {
@@ -497,7 +469,6 @@ int main(int argc, char *argv[]){
 					}
 				}
 			}
-
 
 			/* incoming transfer finished, clean up and close socket */
 			if (currentdcc->type == DCC_RECEIVE && currentdcc->byte >= currentdcc->size){
@@ -588,6 +559,7 @@ int process_server_events(int key){
 	int refreshstat;
 	int scrollposy, scrollposx;
 	int i;
+	char serverinfonum[16];
 	char wininfo[256];
 	char buffer[MAXDATASIZE];
 	char inputbuffer[MAXDATASIZE];
@@ -596,7 +568,8 @@ int process_server_events(int key){
 	int formcode, formkey;
 
 	menus = servermenus;
-	currentserver = (server *)currentscreen->screen;
+	currentserver = (server *)currentscreen->info;
+	if (currentserver == NULL) return(E_NONE);
 
 	// create the window selection menu
 	// if forms are showing, pass the key event to forms
@@ -615,7 +588,7 @@ int process_server_events(int key){
 	selectedmenu = selected_menubar_item_id(menus);
 	if (selectedmenu != 0) key = selectedmenu;
 	
-	if (key==KEY_ENTER || key==10){
+	if (key == KEY_ENTER || key == 10){
 		// if a command has been entered pass it to the server as is for now
 
 		strcpy(inputbuffer, inputline->inputbuffer);
@@ -635,10 +608,17 @@ int process_server_events(int key){
 		}	
 	}		
 
-	/* control-k to kill the screen, but you cant do this here so beep */
+	/* control-k to kill the screen */
+	/* if this is the last server, display exit form */
+	/* otherwise display close all server windows form */
+
 	if (key == 11){
-		beep();
-		return(E_NONE);
+		if (get_server_count() == 1) key = E_EXIT_LASTSERVER;
+		else if (get_child_count(currentserver->screen) > 0){
+			gserver = currentserver;
+			key = E_CLOSE_SERVER;
+		}
+		else return(key);
 	}
 
 	// if scrolling the screen set up the proper position
@@ -663,19 +643,30 @@ int process_server_events(int key){
 	if (statusline_update_status(statusline) & U_ALL_REFRESH){
 		// if scrolling print out the line number
 
-		if (currentscreen->scrolling){
-			sprintf(wininfo, "(%d/%d) ", currentscreen->scrollpos, LISTLINES);
-		}
-		else strcpy(wininfo, "");
-					
 		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 
 		if (currentserver->active){
-			strcat(wininfo, currentserver->server);
+			if (currentscreen->scrolling){
+				if (get_server_count() > 1){
+					sprintf(wininfo, "(%d/%d) %s [%d]", currentscreen->scrollpos, LISTLINES,
+					currentserver->server, currentserver->servernum);
+				}
+				else{
+					sprintf(wininfo, "(%d/%d) %s", currentscreen->scrollpos, LISTLINES,
+						currentserver->server);
+				}
+			}
+			else{
+				if (get_server_count() > 1){
+					sprintf(wininfo, "%s [%d]", currentserver->server, currentserver->servernum);
+				}
+				else sprintf(wininfo, "%s", currentserver->server);
+	
+			}
 		}
-		else strcat(wininfo, "Not Connected");
+		else strcpy(wininfo, "Not Connected");
 
 		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
 		mvwaddstr(statusline->statusline, 0, 1, currentserver->nick);
@@ -715,7 +706,6 @@ int process_server_events(int key){
 		}
 	}
 
-
 	// finally print the current input buffer to the inputline window
 	print_inputline(inputline);
 	curs_set(1);
@@ -738,7 +728,7 @@ int process_channel_events(int key){
 	chat *newchat;
 	int formcode, formkey;
 	
-	currentchannel = currentscreen->screen;
+	currentchannel = currentscreen->info;
 	currentserver = currentchannel->server;
 	menus = channelmenus;
 
@@ -855,7 +845,7 @@ int process_channel_events(int key){
 					print_channel(currentchannel, "You can not chat with yourself.\n");
 				}
 				else {
-					if (chat_by_name(selected_channel_nick(currentchannel)) == NULL){
+					if (chat_by_name(selected_channel_nick(currentchannel), currentserver) == NULL){
 						newchat = add_chat(selected_channel_nick(currentchannel), currentserver);
 						set_channel_update_status(currentchannel, U_ALL_REFRESH);
 						set_chat_update_status(newchat, U_ALL_REFRESH);
@@ -935,7 +925,7 @@ int process_channel_events(int key){
 					set_menuline_update_status(menuline, U_ALL_REFRESH);
 				}
 				else {
-					new_dccchat = dcc_chat_by_name(selected_channel_nick(currentchannel)); 
+					new_dccchat = dcc_chat_by_name(selected_channel_nick(currentchannel), currentserver); 
 					if (new_dccchat == NULL){ 
 						new_dccchat = add_outgoing_dcc_chat(selected_channel_nick(currentchannel), 
 							currentserver->nick, currentserver);
@@ -944,7 +934,7 @@ int process_channel_events(int key){
 						create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), 
 							selected_channel_nick(currentchannel), "");
 					}
-					else currentscreen = dcc_chat_screen_by_name(selected_channel_nick(currentchannel));
+					else currentscreen = dcc_chat_screen_by_name(selected_channel_nick(currentchannel), currentserver);
 					set_dccchat_update_status(new_dccchat, U_ALL_REFRESH);
 					set_menuline_update_status(menuline, U_ALL_REFRESH);
 					set_statusline_update_status(statusline, U_ALL_REFRESH);
@@ -1059,20 +1049,35 @@ int process_channel_events(int key){
 	if (statusline_update_status(statusline) & U_ALL_REFRESH){
 		// if scrolling print out the line number
 
-		if (currentscreen->scrolling){
-			sprintf(wininfo, "(%d/%d) ", currentscreen->scrollpos, LISTLINES);
-		}
-		else strcpy(wininfo, "");
 					
 		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 
-		strcat(wininfo, ((channel *)(currentscreen->screen))->channel);
-		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
-		mvwaddstr(statusline->statusline, 0, 1, ((server *)(currentchannel->server))->nick);
+		if (get_server_count() > 1){
+			if (currentscreen->scrolling){
+				sprintf(wininfo, "(%d/%d) %s on %s [%d]", currentscreen->scrollpos, LISTLINES,
+					currentchannel->channel, currentserver->server, currentserver->servernum);
+			}
+			else{
+				sprintf(wininfo, "%s on %s [%d]", currentchannel->channel, 
+					currentserver->server, currentserver->servernum);
+			}
+		}
+		else{
+			if (currentscreen->scrolling){
+				sprintf(wininfo, "(%d/%d) %s on %s", currentscreen->scrollpos, LISTLINES,
+					currentchannel->channel, currentserver->server);
+			}
+			else{
+				sprintf(wininfo, "%s on %s", currentchannel->channel, currentserver->server);
+			}
+		}
+		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo) - 1, wininfo);
+		mvwaddstr(statusline->statusline, 0, 1, currentserver->nick);
 		wrefresh(statusline->statusline);
 		unset_statusline_update_status(statusline, U_ALL);
+
 	}
 
 	refreshstat = channel_update_status(currentchannel);
@@ -1132,16 +1137,10 @@ int process_channel_events(int key){
 		}
 	}
 
-	else if (key == E_CHANNEL_PART || key == E_CLOSE){
-		sendcmd_server(currentchannel->server, "PART", currentchannel->channel, "", currentchannel->server->nick);
-	}
-
 	print_inputline(inputline);
 	curs_set(1);
 	return(key);
 }
-
-
 
 int process_chat_events(int key){
 	int selectedmenu;
@@ -1152,13 +1151,15 @@ int process_chat_events(int key){
 	char inputbuffer[MAXDATASIZE];
 	menubar *menus;
 	chat *currentchat;	
+	server *currentserver;
 	int formkey, formcode;
 
 	// create the window selection menu
 	menus = chatmenus;
 	move_menu(windowmenu, 9, 1);
 	ChatMenu[1] = windowmenu;	
-	currentchat = currentscreen->screen;
+	currentchat = currentscreen->info;
+	currentserver = currentchat->server;
 
 	//if forms are showing, pass the key event to forms
 	if (currentform){
@@ -1200,20 +1201,33 @@ int process_chat_events(int key){
 
 	// update the statusline for this screen if required
 	if (statusline_update_status(statusline) & U_ALL_REFRESH){
-		// if scrolling print out the line number
 
-		if (currentscreen->scrolling){
-			sprintf(wininfo, "(%d/%d) ", currentscreen->scrollpos, LISTLINES);
+		if (get_server_count() > 1){
+			if (currentscreen->scrolling){
+				sprintf(wininfo, "(%d/%d) %s on %s [%d]", currentscreen->scrollpos, LISTLINES,
+					currentchat->nick, currentserver->server, currentserver->servernum);
+			}
+			else{
+				sprintf(wininfo, "%s on %s [%d]", currentchat->nick, 
+					currentserver->server, currentserver->servernum);
+			}
 		}
-		else strcpy(wininfo, "");
-					
+		else{
+			if (currentscreen->scrolling){
+				sprintf(wininfo, "(%d/%d) %s on %s", currentscreen->scrollpos, LISTLINES,
+					currentchat->nick, currentserver->server);
+			}
+			else{
+				sprintf(wininfo, "%s on %s", currentchat->nick, currentserver->server);
+			}
+		}
+
 		wattrset(statusline->statusline, MENU_COLOR);
 		wattron(statusline->statusline, A_REVERSE);
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 
-		strcat(wininfo, currentchat->nick);
 		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
-		mvwaddstr(statusline->statusline, 0, 1, currentchat->server->nick);
+		mvwaddstr(statusline->statusline, 0, 1, currentserver->nick);
 		wrefresh(statusline->statusline);
 		unset_statusline_update_status(statusline, U_ALL);
 	}
@@ -1273,7 +1287,7 @@ int process_dccchat_events(int key){
 	dcc_chat *currentchat;
 	
 	menus = dccchatmenus;
-	currentchat = currentscreen->screen;
+	currentchat = currentscreen->info;
 
 	// create the window selection menu
 	move_menu(windowmenu, 13, 1);
@@ -1351,10 +1365,11 @@ int process_dccchat_events(int key){
 		unset_dccchat_update_status(currentchat, U_ALL);
 	}
 
-	if (key == E_CLOSE){
-		end_dccchat(currentchat);
-		return(key);
-	}
+	//if (key == E_CLOSE){
+	//	end_dccchat(currentchat);
+	//	return(key);
+	//}
+
 	else if (key == E_DISCONNECT){
 		disconnect_dccchat(currentchat);
 	}
@@ -1402,7 +1417,7 @@ int process_list_events(int key){
 	int searchtype;
 
 	menus = listmenus;
-	currentlist = currentscreen->screen;
+	currentlist = currentscreen->info;
 
 	// create the window selection menu
 	move_menu(windowmenu, 9, 1);
@@ -1446,13 +1461,13 @@ int process_list_events(int key){
 	}
 
 	else if (key == E_CHANNEL_JOIN && selected_list_channel(currentlist) != NULL){
-		sendcmd_server(server_by_name(currentlist->servername), "JOIN", selected_list_channel(currentlist), "", "");
+		sendcmd_server(currentlist->server, "JOIN", selected_list_channel(currentlist), "", "");
 		set_list_update_status(currentlist, U_ALL_REFRESH);
 		key = E_NOWAIT;
 	}
 
-	/* entrer brings up the join / add favorites form */
-	else if (key==KEY_ENTER || key==10){
+	/* enter brings up the join / add favorites form */
+	else if (key == KEY_ENTER || key == 10){
 		currentform = CF_CHANNEL_SELECT;
 		key = E_NOWAIT;
 		print_inputline(inputline);
@@ -1466,8 +1481,16 @@ int process_list_events(int key){
 	// update the statusline for this screen if required
 	if (statusline_update_status(statusline) & U_ALL_REFRESH){
 
-		strcpy(wininfo, "");
-		strcat(wininfo, currentlist->servername);
+		if (get_server_count() > 1){
+			sprintf(wininfo, "%d channels on %s [%d]", currentlist->listchannels,
+				currentlist->servername, currentlist->server->servernum);
+		}
+		else{
+			sprintf(wininfo, "%d channels on %s", currentlist->listchannels,
+				currentlist->servername);
+		}
+
+
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
 		if (currentlist->active){
@@ -1490,7 +1513,7 @@ int process_list_events(int key){
 		unset_menubar_update_status(menus, U_BG_REDRAW);
 		refresh_list_screen(currentlist);
 	}		
-	unset_list_update_status((list *)(currentscreen->screen), U_ALL);
+	unset_list_update_status((list *)(currentscreen->info), U_ALL);
 
 	draw_menuline_screen(menuline, menus);
 
@@ -1519,7 +1542,7 @@ int process_list_events(int key){
 		formcode = get_channel_select_options(formkey);
 		if (formcode == E_OK){
 			if (selected_list_channel(currentlist) != NULL){
-				sendcmd_server(server_by_name(currentlist->servername), "JOIN", 
+				sendcmd_server(currentlist->server, "JOIN", 
 					selected_list_channel(currentlist), "", "");
 			}	
 			set_list_update_status(currentlist, U_ALL_REFRESH);
@@ -1552,6 +1575,280 @@ int process_list_events(int key){
 	curs_set(1);
 	return(key);
 }
+
+/* main events tbd *********************************************/
+
+int process_main_events(int key){
+	int selectedmenu;
+	int formkey;
+	char wininfo[256];
+	
+	static screen *selected = NULL;
+	screen *current;
+	server *S;
+
+	channel *C;
+	chat *c;
+	dcc_chat *d;
+	list *L; 
+	transfer *T;
+	static int selectedi;
+
+	dcc_file *currenttransfer, *nexttransfer;
+
+	char filescratch[1024];
+	char progressscratch[1024];
+	char scratch[1024], rscratch[1024];
+
+	struct in_addr hostipaddr;
+	int transfer_num, transfer_pos;
+	int entrynum, entrypos; 
+	float ratio;
+	int percent;
+	int upnum, downnum;
+	int i, slen, dlen;
+	float kbps, upkbps, downkbps; 
+	float ttime, tbytes;
+	int displayed;
+
+	time_t now;
+	static time_t lastupdate = 0;
+	menubar *menus;
+	
+	curs_set(0);
+	menus = transfermenus;
+
+	// create the window selection menu
+	move_menu(windowmenu, 13, 1);
+	TransferMenu[1] = windowmenu;
+
+
+	if (selected == NULL) selected = screenlist;
+
+	T = ((transfer *)(currentscreen->info));
+	if (T->selectedfile == NULL || !dcc_file_exists(T, T->selectedfile)){
+		T->selectedfile = T->dcclist;
+	}
+	if (T->dcclisttop == NULL || !dcc_file_exists(T, T->dcclisttop)){
+		T->dcclisttop = T->dcclist;
+	}
+
+	//if forms are showing, pass the key event to forms
+	if (currentform){
+		formkey = key;
+		key = E_NONE;
+	}
+	else formkey = 0;
+
+	// process menu events
+	key = process_menubar_events(menus, key);
+	selectedmenu = selected_menubar_item_id(menus);
+	if (selectedmenu != 0) key = selectedmenu;
+
+	// handle input at the keyboard
+	// control-k to kill the screen, but you cant do this here so beep
+	if (key == 11){
+		beep();
+		return(E_NONE);
+	}
+
+	// no scrolling here use these keys to select trasfer
+	else if (key==KEY_SF || key==KEY_HOME || key==KEY_A1){} 
+	else if (key==KEY_SR || key==KEY_END || key==KEY_C1){} 
+	else if (key==KEY_PPAGE || key==KEY_A3){} 
+	else if (key==KEY_NPAGE || key==KEY_C3){}
+			
+	/* bring up the abort / info form */				
+	else if (key==KEY_ENTER||key==10){
+		currentform = CF_FILE_TRANSFER;
+		set_statusline_update_status(statusline, U_ALL_REFRESH); 
+		set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+	}
+
+	else if (key == KEY_DOWN){
+		if (selected->type == TRANSFER && T->dcclist != NULL){
+			if (T->selectedfile != NULL){
+				if (T->selectedfile->next != NULL){
+					set_screen_update_status(currentscreen, U_ALL_REFRESH);
+					T->selectedfile = T->selectedfile->next;
+
+				}
+			}
+		}
+		else {
+			if (selected->next != NULL) selected = selected->next;
+		}
+		set_screen_update_status(currentscreen, U_ALL_REFRESH);
+	}
+
+	else if (key == KEY_UP){
+		if (selected->type == TRANSFER && T->dcclist != NULL){
+			if (T->selectedfile != NULL){
+				if (T->selectedfile->prev != NULL){
+					set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+					T->selectedfile = T->selectedfile->prev;
+
+					/* adjust the top so that it's visible on the screen */
+				}
+			}
+		}
+		else {	
+			if (selected->prev != NULL) selected = selected->prev;
+		}
+		set_screen_update_status(currentscreen, U_ALL_REFRESH);
+	}
+
+
+	entrypos = 0;
+	current = screenlist;
+	while(current != NULL){
+ 
+		scratch[0] = 0;
+		if (current->type == TRANSFER) sprintf(scratch, "Main");
+		else if (current->type == SERVER) sprintf(scratch, "+Server %s", ((server *)(current->info))->server);
+		else if (current->type == CHANNEL) sprintf(scratch, " +Channel %s", ((channel *)(current->info))->channel);
+
+		slen = strlen(scratch);
+
+		/* pad the line with spaces */
+		for (i = slen; i < COLS; i++){
+			 scratch[i] = ' ';
+		}
+		scratch[i] = 0;
+		if (current == selected) wattrset(T->message, A_REVERSE);
+		else wattrset(T->message, A_NORMAL);
+
+		mvwaddstr(T->message, entrypos, 0, scratch);
+		current=current->next;
+		entrypos++;
+	}
+
+
+
+
+	// update the menu selection screen if required
+
+	time(&now);
+	upkbps = 0;
+	downkbps = 0;
+	upnum = 0;
+	downnum = 0;
+	transfer_num = 0;
+	transfer_pos = 0;
+
+#ifdef blah
+
+
+	if (currentmenusline->current < 0){
+		if (now > lastupdate ||	transfer_update_status(T)){	
+			displayed = 0;
+			lastupdate = now;
+			currenttransfer = T->dcclist;
+			while(currenttransfer != NULL){
+				transfer_num++;
+				nexttransfer = currenttransfer->next;
+				// touchline(T->message, transfer_num * 2, 2);	
+	
+				tbytes = (float)currenttransfer->byte;
+				ttime = (float)(now - currenttransfer->starttime);
+				if (ttime > 0) kbps = tbytes/(ttime*1000);
+				else kbps = 0;
+
+				/* start displaying only after the top of the screen */
+				if (currenttransfer == T->dcclisttop) displayed = 1;
+
+				if (displayed){
+					transfer_pos++;
+					if (currenttransfer == T->selectedfile) wattrset(T->message, A_REVERSE);
+					else wattrset(T->message, A_NORMAL);
+
+
+					scratch[0] = 0;
+					if (currenttransfer->type == DCC_RECEIVE) sprintf(scratch, "RECEIVING: %s", currenttransfer->filename);
+					else if (currenttransfer->type == DCC_SEND) sprintf(scratch, "SENDING: %s", currenttransfer->filename);
+					sprintf(rscratch, "%ld/%ld, %.1f KB/s\n", currenttransfer->byte, currenttransfer->size, kbps); 
+
+					slen = strlen(scratch);
+					dlen = strlen(rscratch);
+
+					/* pad the line with spaces */
+					for (i = slen; i < COLS - dlen - 1; i++){
+						 scratch[i] = ' ';
+					}
+					scratch[i] = 0;
+					strcat(scratch, rscratch);
+
+					mvwaddstr(T->message, transfer_pos * 3 - 2, 1, scratch);
+					ratio = (float)currenttransfer->byte * 100.0f;
+					percent = (int)(ratio / (float)currenttransfer->size);
+
+					progress_bar(T->message, transfer_pos * 3 - 1, 1, COLS-2, percent);
+					currenttransfer->last_updated_at = now;
+					set_statusline_update_status(statusline, U_ALL_REFRESH); 
+					set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+				}	
+
+				if (currenttransfer->type == DCC_RECEIVE){
+					downnum++;
+					downkbps = downkbps + kbps;
+				}
+				else if (currenttransfer->type == DCC_SEND){
+					upnum++;
+					upkbps = upkbps + kbps;
+				}
+				currenttransfer = nexttransfer;
+			}
+		}
+	}
+	
+#endif
+	// update the statusline for this screen if required
+
+	if (statusline_update_status(statusline) & U_ALL_REFRESH || transfer_update_status(T) & U_ALL_REFRESH){
+		sprintf(wininfo, "UP %d FILES @ %.1fKB/s : DOWN %d FILES @ %.1fKB/s", 
+			upnum, upkbps, downnum, downkbps);
+		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
+	 	mvwaddstr(statusline->statusline, 0, 0, " Transfer Screen");
+		touchwin(statusline->statusline);
+		wrefresh(statusline->statusline);
+		unset_statusline_update_status(statusline, U_ALL);
+	}
+
+	if (transfer_update_status(T) & U_ALL_REFRESH ||
+		menubar_update_status(menus) & U_BG_REDRAW){
+		refresh_transfer_screen(T); 
+		unset_transfer_update_status(T, U_ALL);
+		unset_menubar_update_status(menus, U_BG_REDRAW);
+	}
+
+	draw_menuline_screen(menuline, menus);
+
+	if (key == E_TRANSFER_STOP){
+		if (dcc_file_exists(T, T->selectedfile)){
+			remove_dcc_file(T->selectedfile);
+		}
+		set_statusline_update_status(statusline, U_ALL_REFRESH); 
+		set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+		return(E_NOWAIT);
+	}
+	else if (key == E_TRANSFER_INFO){
+		if (dcc_file_exists(T, T->selectedfile)){
+			currentform = CF_FILE_TRANSFER_INFO;
+		}
+		set_statusline_update_status(statusline, U_ALL_REFRESH); 
+		set_screen_update_status(currentscreen, U_ALL_REFRESH); 
+	}
+
+	if (currentform) key = formkey;
+	key = process_common_form_events(currentscreen, key);
+
+	print_inputline(inputline);
+	curs_set(1);
+	return(key);
+
+}
+
+/*************************************/
 
 int process_transfer_events(int key){
 	int selectedmenu;
@@ -1587,7 +1884,7 @@ int process_transfer_events(int key){
 	move_menu(windowmenu, 13, 1);
 	TransferMenu[1] = windowmenu;
 
-	T = ((transfer *)(currentscreen->screen));
+	T = ((transfer *)(currentscreen->info));
 	if (T->selectedfile == NULL || !dcc_file_exists(T, T->selectedfile)){
 		T->selectedfile = T->dcclist;
 	}
@@ -1809,7 +2106,7 @@ int process_help_events(int key){
 	int formcode;
 	
 	menus = helpmenus;
-	currenthelp = currentscreen->screen;
+	currenthelp = currentscreen->info;
 
 	// create the window selection menu
 	move_menu(windowmenu, 9, 1);
@@ -1856,14 +2153,14 @@ int process_help_events(int key){
 		for (i=0; i < COLS; i++) mvwaddch(statusline->statusline, 0, i, ' ');
 		mvwaddstr(statusline->statusline, 0, COLS-strlen(wininfo)-1, wininfo);
 
-		sprintf(wininfo, "Help: %s", ((help*)(currentscreen->screen))->name);
+		sprintf(wininfo, "Help: %s", ((help*)(currentscreen->info))->name);
 
 		mvwaddstr(statusline->statusline, 0, 1, wininfo);
 		wrefresh(statusline->statusline);
 		unset_statusline_update_status(statusline, U_ALL);
 	}
 
-	refreshstat = help_update_status((help *)(currentscreen->screen));
+	refreshstat = help_update_status((help *)(currentscreen->info));
 
 	if (!currentscreen->scrolling){
 		getyx(currenthelp->message, scrollposy, scrollposx);
@@ -1901,10 +2198,10 @@ int process_common_form_events(screen *inscreen, int key){
 	int i;
 
 	/* get the current server for the event */
-	if (inscreen->type == SERVER) currentserver = inscreen->screen;
-	else if (inscreen->type == CHANNEL) currentserver = ((channel *)inscreen->screen)->server;
-	else if (inscreen->type == CHAT) currentserver = ((chat *)inscreen->screen)->server;
-	else if (inscreen->type == DCCCHAT) currentserver = ((dcc_chat *)inscreen->screen)->server;
+	if (inscreen->type == SERVER) currentserver = inscreen->info;
+	else if (inscreen->type == CHANNEL) currentserver = ((channel *)inscreen->info)->server;
+	else if (inscreen->type == CHAT) currentserver = ((chat *)inscreen->info)->server;
+	else if (inscreen->type == DCCCHAT) currentserver = ((dcc_chat *)inscreen->info)->server;
 
 	update = 0;
 	if (currentform){
@@ -1918,6 +2215,8 @@ int process_common_form_events(screen *inscreen, int key){
 	newform = 0;
 
 	if (key == E_EXIT || key == 24) newform = CF_EXIT;
+	else if (key == E_EXIT_LASTSERVER) newform = CF_EXIT_LASTSERVER;
+	else if (key == E_CLOSE_SERVER) newform = CF_CLOSE_SERVER;
 
 	/* server form spawn events */
 	else if (key == E_CONNECT_NEW && currentform == 0) newform = CF_NEW_SERVER_CONNECT;
@@ -1986,7 +2285,6 @@ int process_common_form_events(screen *inscreen, int key){
 			key = E_NOWAIT;
 		}
 	}
-	
 	if (newform != 0){
 		currentform = newform;
 		key = E_NOWAIT;
@@ -2000,19 +2298,53 @@ int process_common_form_events(screen *inscreen, int key){
 		if (formcode == E_CANCEL){
 			update = U_ALL_REFRESH;
 			currentform = 0;
+			key = E_NOWAIT;
 		}
+	}
+	else if (currentform == CF_EXIT_LASTSERVER){
+		formcode = end_last_server(formkey);
+		if (formcode == E_CANCEL){
+			update = U_ALL_REFRESH;
+			currentform = 0;
+			key = E_NOWAIT;
+		}
+	}
+	else if (currentform == CF_CLOSE_SERVER){
+		formcode = end_server_screens(formkey);
+		if (formcode == E_CANCEL){
+			update = U_ALL_REFRESH;
+			currentform = 0;
+			key = E_NOWAIT;
+		}				
+
+		else if (formcode == E_CLOSE){
+			currentform = 0;
+			close_screen_and_children(gserver->screen);		
+			return(E_CHANGE_SCREEN);
+			//update = U_ALL_REFRESH;
+			//key = E_NOWAIT;
+		}
+
 	}
 
 	/* server forms */
 	else if (currentform == CF_NEW_SERVER_CONNECT){
 		formcode = get_new_connect_info(formkey, newserver, &newport, newpassword);
 		if (formcode == E_OK){
-			if (currentserver->active) disconnect_from_server(currentserver);
-			strcpy(currentserver->server, newserver);
-			currentserver->port = newport;
-			currentserver->connect_status = 0;
-			currentform = 0;
-			key = E_NOWAIT;
+			/* if this server is already connected, create a new server screen */
+			if (currentserver->active){ 
+				currentserver = add_server(newserver, newport, "", "", "", "", "");
+				currentserver->connect_status = 0;
+				currentform = 0;
+				key = E_NOWAIT;
+			}
+			else{
+				strcpy(currentserver->server, newserver);
+				currentserver->port = newport;
+				currentserver->connect_status = 0;
+				currentform = 0;
+				key = E_NOWAIT;
+			}
 		}
 		else if (formcode == E_CANCEL){
 			update = U_ALL_REFRESH;
@@ -2023,12 +2355,20 @@ int process_common_form_events(screen *inscreen, int key){
 	else if (currentform == CF_FAVORITE_SERVER_CONNECT){
 		formcode = get_favorite_connect_info(formkey, newserver, &newport);
 		if (formcode == E_OK){
-			if (currentserver->active) disconnect_from_server(currentserver);
-			strcpy(currentserver->server, newserver);
-			currentserver->port = newport;
-			currentserver->connect_status = 0;
-			currentform = 0;
-			key = E_NOWAIT;
+			/* if this server is already connected, create a new server screen */
+			if (currentserver->active){ 
+				currentserver = add_server(newserver, newport, "", "", "", "", "");
+				currentserver->connect_status = 0;
+				currentform = 0;
+				key = E_NOWAIT;
+			}
+			else{
+				strcpy(currentserver->server, newserver);
+				currentserver->port = newport;
+				currentserver->connect_status = 0;
+				currentform = 0;
+				key = E_NOWAIT;
+			}
 		}
 		else if (formcode == E_CANCEL){
 			update = U_ALL_REFRESH;
@@ -2056,14 +2396,14 @@ int process_common_form_events(screen *inscreen, int key){
 			currentform = 0;
 			if (!currentserver->active) print_server(currentserver, "Must be connected to join.\n");
 			else {
-				new_channel = channel_by_name(newchannel);			
+				new_channel = channel_by_name(newchannel, currentserver);			
 				if (new_channel == NULL){
 					sendcmd_server(currentserver, "JOIN", newchannel, "", "");
 					update = U_ALL_REFRESH;
 					key = E_NOWAIT;
 				}
 				else {
-					currentscreen = channel_screen_by_name(newchannel);
+					currentscreen = channel_screen_by_name(newchannel, currentserver);
 					set_channel_update_status(new_channel, U_ALL_REFRESH);
 					set_menuline_update_status(menuline, U_ALL_REFRESH);
 					set_statusline_update_status(statusline, U_ALL_REFRESH);
@@ -2084,14 +2424,14 @@ int process_common_form_events(screen *inscreen, int key){
 			currentform = 0;
 			if (!currentserver->active) print_server(currentserver, "Must be connected to join.\n");
 			else {
-				new_channel = channel_by_name(newchannel);			
+				new_channel = channel_by_name(newchannel, currentserver);			
 				if (new_channel == NULL){
 					sendcmd_server(currentserver, "JOIN", newchannel, "", "");
 					update = U_ALL_REFRESH;
 					key = E_NOWAIT;
 				}
 				else {
-					currentscreen = channel_screen_by_name(newchannel);
+					currentscreen = channel_screen_by_name(newchannel, currentserver);
 					set_channel_update_status(new_channel, U_ALL_REFRESH);
 					set_menuline_update_status(menuline, U_ALL_REFRESH);
 					set_statusline_update_status(statusline, U_ALL_REFRESH);
@@ -2127,9 +2467,9 @@ int process_common_form_events(screen *inscreen, int key){
 			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to chat.\n");
 			else {
-				new_chat = chat_by_name(newuser);
+				new_chat = chat_by_name(newuser, currentserver);
 				if (new_chat == NULL) new_chat = add_chat(newuser, currentserver);
-				else currentscreen = chat_screen_by_name(newuser);
+				else currentscreen = chat_screen_by_name(newuser, currentserver);
  
 				set_chat_update_status(new_chat, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
@@ -2153,9 +2493,9 @@ int process_common_form_events(screen *inscreen, int key){
 			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to chat.\n");
 			else {
-				new_chat = chat_by_name(newuser);
+				new_chat = chat_by_name(newuser, currentserver);
 				if (new_chat == NULL) new_chat = add_chat(newuser, currentserver);
-				else currentscreen = chat_screen_by_name(newuser);
+				else currentscreen = chat_screen_by_name(newuser, currentserver);
 
 				set_chat_update_status(new_chat, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
@@ -2178,14 +2518,14 @@ int process_common_form_events(screen *inscreen, int key){
 			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not DCC chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to DCC chat.\n");
 			else {
-				new_dccchat = dcc_chat_by_name(newuser); 
+				new_dccchat = dcc_chat_by_name(newuser, currentserver); 
 				if (new_dccchat == NULL){ 
 					new_dccchat = add_outgoing_dcc_chat(newuser, currentserver->nick, currentserver);
 					start_outgoing_dcc_chat(new_dccchat);
 					sendcmd_server(currentserver, "PRIVMSG",
 					create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), newuser, "");
 				}
-				else currentscreen = dcc_chat_screen_by_name(newuser);
+				else currentscreen = dcc_chat_screen_by_name(newuser, currentserver);
 				set_dccchat_update_status(new_dccchat, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 				set_statusline_update_status(statusline, U_ALL_REFRESH);
@@ -2208,14 +2548,14 @@ int process_common_form_events(screen *inscreen, int key){
 			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not DCC chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to DCC chat.\n");
 			else {
-				new_dccchat = dcc_chat_by_name(newuser); 
+				new_dccchat = dcc_chat_by_name(newuser, currentserver); 
 				if (new_dccchat == NULL){ 
 					new_dccchat = add_outgoing_dcc_chat(newuser, currentserver->nick, currentserver);
 					start_outgoing_dcc_chat(new_dccchat);
 					sendcmd_server(currentserver, "PRIVMSG",
 					create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), newuser, "");
 				}
-				else currentscreen = dcc_chat_screen_by_name(newuser);
+				else currentscreen = dcc_chat_screen_by_name(newuser, currentserver);
 				set_dccchat_update_status(new_dccchat, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 				set_statusline_update_status(statusline, U_ALL_REFRESH);
@@ -2419,7 +2759,7 @@ int process_common_form_events(screen *inscreen, int key){
 			key = E_NOWAIT;
 		}
 		else if (formcode == E_TRANSFER_STOP){
-			if (dcc_file_exists(inscreen->screen, transferscreen->selectedfile)){
+			if (dcc_file_exists(inscreen->info, transferscreen->selectedfile)){
 				remove_dcc_file(transferscreen->selectedfile);
 			}
 			update = U_ALL_REFRESH;
@@ -2427,7 +2767,7 @@ int process_common_form_events(screen *inscreen, int key){
 			key = E_NOWAIT;
 		}
 		else if (formcode == E_TRANSFER_INFO){
-			if (dcc_file_exists(inscreen->screen, transferscreen->selectedfile)){
+			if (dcc_file_exists(inscreen->info, transferscreen->selectedfile)){
 				currentform = CF_FILE_TRANSFER_INFO;
 			}
 			else currentform = 0;
@@ -2464,13 +2804,13 @@ int process_common_form_events(screen *inscreen, int key){
 	}
 
 	if (update){
-		if (inscreen->type == SERVER) set_server_update_status(inscreen->screen, update);
-		else if (inscreen->type == CHANNEL) set_channel_update_status(inscreen->screen, update);
-		else if (inscreen->type == CHAT) set_chat_update_status(inscreen->screen, update);
-		else if (inscreen->type == DCCCHAT) set_dccchat_update_status(inscreen->screen, update);
-		else if (inscreen->type == TRANSFER) set_transfer_update_status(inscreen->screen, update);
-		else if (inscreen->type == LIST) set_list_update_status(inscreen->screen, update);
-		else if (inscreen->type == HELP) set_help_update_status(inscreen->screen, update);
+		if (inscreen->type == SERVER) set_server_update_status(inscreen->info, update);
+		else if (inscreen->type == CHANNEL) set_channel_update_status(inscreen->info, update);
+		else if (inscreen->type == CHAT) set_chat_update_status(inscreen->info, update);
+		else if (inscreen->type == DCCCHAT) set_dccchat_update_status(inscreen->info, update);
+		else if (inscreen->type == TRANSFER) set_transfer_update_status(inscreen->info, update);
+		else if (inscreen->type == LIST) set_list_update_status(inscreen->info, update);
+		else if (inscreen->type == HELP) set_help_update_status(inscreen->info, update);
 		set_menuline_update_status(menuline, U_ALL_REFRESH);
 		set_statusline_update_status(statusline, U_ALL_REFRESH);
 	}
@@ -2492,11 +2832,11 @@ menu *build_window_menu(int startx, int starty){
 	while (current != NULL){
 		bzero(menutext, 256);
                 if (current->type == SERVER){
-			if (((server *)(current->screen))->active){
+			if (((server *)(current->info))->active){
 				sprintf(menutext, " Server: %s port %d ", 
-					((server *)(current->screen))->server, ((server *)(current->screen))->port);
-				sprintf(menudesc, "%s@%s:%d", ((server *)(current->screen))->nick,
-					((server *)(current->screen))->server, ((server *)(current->screen))->port); 
+					((server *)(current->info))->server, ((server *)(current->info))->port);
+				sprintf(menudesc, "%s@%s:%d", ((server *)(current->info))->nick,
+					((server *)(current->info))->server, ((server *)(current->info))->port); 
 			}
 			else{
 				sprintf(menutext, " Server Screen (not connected) "); 
@@ -2504,32 +2844,32 @@ menu *build_window_menu(int startx, int starty){
 			}
 		}
                 else if (current->type == CHANNEL){
-			sprintf(menutext, " Channel: %s on %s ", ((channel *)(current->screen))->channel, 
-				((server *)((channel *)(current->screen))->server)->server);
-			sprintf(menudesc, "%s@%s#%s", (((channel *)(current->screen))->server)->nick, 
-				((channel *)(current->screen))->channel, 
-                                (((channel *)(current->screen))->server)->server);
+			sprintf(menutext, " Channel: %s on %s ", ((channel *)(current->info))->channel, 
+				((server *)((channel *)(current->info))->server)->server);
+			sprintf(menudesc, "%s@%s#%s", (((channel *)(current->info))->server)->nick, 
+				((channel *)(current->info))->channel, 
+                                (((channel *)(current->info))->server)->server);
                 }
 		else if (current->type == TRANSFER){
                         sprintf(menutext, " Transfer Screen ");
                         sprintf(menudesc, " Transfers ");	
                 }   
                 else if (current->type == CHAT){
-			sprintf(menutext, " Chat: %s on %s ", ((chat *)(current->screen))->nick, 
-				((server *)((chat *)(current->screen))->server)->server);
-			sprintf(menudesc, "%s@%s", ((chat *)(current->screen))->nick, 
-                                ((server *)((chat *)(current->screen))->server)->server);
+			sprintf(menutext, " Chat: %s on %s ", ((chat *)(current->info))->nick, 
+				((server *)((chat *)(current->info))->server)->server);
+			sprintf(menudesc, "%s@%s", ((chat *)(current->info))->nick, 
+                                ((server *)((chat *)(current->info))->server)->server);
                 }
                 else if (current->type == DCCCHAT){
-			sprintf(menutext, " DCC Chat: %s ", ((dcc_chat *)(current->screen))->nick);
-			sprintf(menudesc, "%s", ((dcc_chat *)(current->screen))->nick);
+			sprintf(menutext, " DCC Chat: %s ", ((dcc_chat *)(current->info))->nick);
+			sprintf(menudesc, "%s", ((dcc_chat *)(current->info))->nick);
                 }
                 else if (current->type == LIST){
-			sprintf(menutext, " Channel List: %s ", ((list *)(current->screen))->servername); 
+			sprintf(menutext, " Channel List: %s ", ((list *)(current->info))->servername); 
 			sprintf(menudesc, " ");
                 }
                 else if (current->type == HELP){
-			sprintf(menutext, " Help: %s ", ((help *)(current->screen))->name); 
+			sprintf(menutext, " Help: %s ", ((help *)(current->info))->name); 
 			sprintf(menudesc, " ");
                 }
 
@@ -2553,70 +2893,107 @@ int draw_menuline_screen(menuwin *menuline, menubar *menubar){
 	char repchar;
 	int repattr;
 	int updatemenu;
+	int firstserver, multiserver, outstandingbracket;
+
+	int serverstart, serverend;
+
+	int screenchars[MAXSCREENNAMES];
+	int screenattribs[MAXSCREENNAMES];
+	int numchars, currchar, selectedchar;
+
+	multiserver = get_server_count();
+	numchars = 0;
+	firstserver = 1;
 
 	updatemenu = 0;
 	curs_set(0);
 	print_menubar(menuline, menubar);
 	
-	// count the number of present screens in the first loop for text alignment
-	screennum=0;
-	current=screenlist;
-	while(current!=NULL){ 
-		if (current->hidden == 0) screennum++;
-		current=current->next;
-	}
-	
-	// print out screen list on the menuline
-	current=screenlist;
-	while(current!=NULL){
-		repchar='*';
-		repattr = A_NORMAL;
-		if (current->type==SERVER){
-			repchar='S';
-			if (server_update_status(current->screen)) repattr = A_BOLD;
-		}	
-		else if (current->type==CHANNEL){
-			repchar='C';
-			if (channel_update_status(current->screen)) repattr = A_BOLD;
+	serverstart = 0;
+	serverend = 0;
+	outstandingbracket = 0;
 
+	// print out screen list on the menuline
+	current = screenlist;
+
+	while(current != NULL){
+		repchar = '*';
+		repattr = A_NORMAL;
+
+		if (current->type == SERVER){
+			if (multiserver > 1){
+				serverstart = 1;
+				if (!firstserver) serverend = 1;
+				firstserver = 0;
+			}
+			repchar='S';
+			if (server_update_status(current->info)) repattr = A_BOLD;
 		}	
-		else if (current->type==TRANSFER){
-			repchar='T';
-			if (transfer_update_status(current->screen)) repattr = A_BOLD;
+		else if (current->type == CHANNEL){
+			repchar='C';
+			if (channel_update_status(current->info)) repattr = A_BOLD;
 		}	
-		else if (current->type==CHAT){
+		else if (current->type == CHAT){
 			repchar='c';
-			if (chat_update_status(current->screen)) repattr = A_BOLD;
+			if (chat_update_status(current->info)) repattr = A_BOLD;
 		}	
-		else if (current->type==DCCCHAT){
-			repchar='d';
-			if (dccchat_update_status(current->screen)) repattr = A_BOLD;
-		}	
-		else if (current->type==LIST){
+		else if (current->type == LIST){
 			repchar='L';
-			// if (list_update_status(current->screen)) repattr = A_BOLD;
+			if (list_update_status(current->info)) repattr = A_BOLD;
 		}	
-		else if (current->type==HELP){
+		else if (current->type == TRANSFER){
+			repchar='T';
+			if (transfer_update_status(current->info)) repattr = A_BOLD;
+			if (outstandingbracket) serverend = 1;
+		}
+		else if (current->type == DCCCHAT){
+			repchar='d';
+			if (dccchat_update_status(current->info)) repattr = A_BOLD;
+			if (outstandingbracket) serverend = 1;
+		}	
+		else if (current->type == HELP){
 			repchar='H';
-			// if (list_update_status(current->screen)) repattr = A_BOLD;
+			if (list_update_status(current->info)) repattr = A_BOLD;
+			if (outstandingbracket) serverend = 1;
 		}	
-		
+
 		// if some screen has updated build the new menu selection window	
 		if (repattr == A_BOLD) updatemenu = 1;
 
-		if (currentscreen==current) repattr = A_BOLD;
-		else repattr |= A_REVERSE;
-
-		wattrset(menuline->menuline, MENU_COLOR);
-		wattron(menuline->menuline, repattr);
-
-		// wattrset(menuline->menuline, make_color(configuration.menu_color_fg, configuration.menu_color_bg));
-
-		if (current->hidden == 0){
-			mvwaddch(menuline->menuline, 0, COLS-screennum-1, repchar);
-			screennum--;
-		}
+		/* write screen identifiers to the arrays */
+		if (current->hidden == 0 && numchars < MAXSCREENNAMES){
+			if (serverend){
+				screenchars[numchars] = ']';
+				screenattribs[numchars++] = A_REVERSE;
+				serverend = 0;
+				outstandingbracket = 0;
+			}
+			if (serverstart){
+				screenchars[numchars] = '[';
+				screenattribs[numchars++] = A_REVERSE;
+				outstandingbracket = 1;
+				serverstart = 0;
+			}
+			screenchars[numchars] = repchar;
+			if (currentscreen == current){
+				selectedchar = numchars;
+				screenattribs[numchars++] = A_BOLD;
+			}
+			else screenattribs[numchars++] = repattr | A_REVERSE;
+		}		
 		current=current->next;
+	}
+
+
+	if (outstandingbracket == 1){
+		screenchars[numchars] = ']';
+		screenattribs[numchars++] = A_REVERSE;
+	}
+
+	for (currchar = 0; currchar < numchars; currchar++){
+		wattrset(menuline->menuline, MENU_COLOR);
+		wattron(menuline->menuline, screenattribs[currchar]);
+		mvwaddch(menuline->menuline, 0, COLS - numchars - 1 + currchar, screenchars[currchar]);
 	}
 
 	/* make the window menu when a screen changes */
@@ -2692,7 +3069,7 @@ int parse_input(server *currentserver, char *buffer){
 		else if (!currentserver->active) print_all("Must be connected to a server to chat.\n");
 		else {
 
-			S = chat_screen_by_name(nick);
+			S = chat_screen_by_name(nick, currentserver);
 			if (S == NULL){
 				C = add_chat(nick, currentserver);
 				set_chat_update_status(C, U_ALL_REFRESH);
@@ -2706,7 +3083,7 @@ int parse_input(server *currentserver, char *buffer){
 			}
 			else {
 				currentscreen = S;
-				C = S->screen;
+				C = S->info;
 				set_chat_update_status(C, U_ALL_REFRESH);
 				set_menuline_update_status(menuline, U_ALL_REFRESH);
 				set_statusline_update_status(statusline, U_ALL_REFRESH);
@@ -2775,14 +3152,14 @@ int parse_input(server *currentserver, char *buffer){
 					else if (!currentserver->active) print_all("Must be connected to a server to DCC chat.\n");
 
 					else {
-						D = dcc_chat_by_name(nick); 
+						D = dcc_chat_by_name(nick, currentserver); 
 						if (D == NULL){ 
 							D = add_outgoing_dcc_chat(nick, currentserver->nick, currentserver);
 							start_outgoing_dcc_chat(D);
 							sendcmd_server(currentserver, "PRIVMSG",
 							create_ctcp_command("DCC CHAT chat", "%lu %d", D->localip, D->localport), nick, "");
 						}
-						else currentscreen = dcc_chat_screen_by_name(nick);
+						else currentscreen = dcc_chat_screen_by_name(nick, currentserver);
 						set_dccchat_update_status(D, U_ALL_REFRESH);
 						set_menuline_update_status(menuline, U_ALL_REFRESH);
 						set_statusline_update_status(statusline, U_ALL_REFRESH);
@@ -2829,12 +3206,12 @@ int parse_input(server *currentserver, char *buffer){
 		channel *C;
 		
 		if (get_next_word(parameters, channelname)){
-			send_current_server(&buffer[1]);
+			sendcmd_server(currentserver, "PART", channelname, "", currentserver->nick);
 			return(E_OTHER);
 		}
 		else {
 			if (currentscreen->type == CHANNEL){
-				C = currentscreen->screen;
+				C = currentscreen->info;
 				sendcmd_server(currentserver, "PART", C->channel, "", currentserver->nick);
 				return(E_OTHER);
 			}
@@ -2846,7 +3223,7 @@ int parse_input(server *currentserver, char *buffer){
 		channel *C;
 		
 		if (currentscreen->type == CHANNEL){
-			C = currentscreen->screen;
+			C = currentscreen->info;
 			sendmsg_channel(C, create_ctcp_command("ACTION", parameters));
 			vprint_channel_attrib(C, CTCP_COLOR, "* %s %s *\n", C->server->nick, parameters);
 			return(E_OTHER);
@@ -2872,7 +3249,7 @@ int parse_input(server *currentserver, char *buffer){
 		// send non empty buffer
 		if (buffer[0] != 0){
 			if (!currentserver->active) print_all("Connect to a server first.\n");
-			else send_current_server(&buffer[1]);
+			else send_server(currentserver, &buffer[1]);
 		}
 	}
 	return(1);
@@ -2914,8 +3291,8 @@ void parse_message(server *currentserver, char *buffer){
 
 		// check what channel the destination message goes to
 		// or what whose chat screen this is coming from
-		sourcechannel = channel_by_name(dest);
- 		sourcechat = chat_by_name(cmdnick);
+		sourcechannel = channel_by_name(dest, currentserver);
+ 		sourcechat = chat_by_name(cmdnick, currentserver);
 
 		// check to see if this is a ctcp encoded message
 		// if so check and respond to ctcp request if required otherwise display the decoded message
@@ -2958,7 +3335,7 @@ void parse_message(server *currentserver, char *buffer){
 		}
 	}
 	
-	else if (strcasecmp(command,"JOIN")==0){
+	else if (strcasecmp(command,"JOIN") == 0){
 		channel *C;
 
 		get_next_param(cmdparam, dest);
@@ -2973,7 +3350,7 @@ void parse_message(server *currentserver, char *buffer){
                         set_statusline_update_status(statusline, U_ALL_REFRESH);
 		}
 		else {
-			C = channel_by_name(dest);
+			C = channel_by_name(dest, currentserver);
 			if (C != NULL) {
 				add_user(C, cmdnick, 0, 0);
 				vprint_channel_attrib(C, JOIN_COLOR, "%s has joined %s\n", cmdnick, dest);
@@ -2982,13 +3359,13 @@ void parse_message(server *currentserver, char *buffer){
 		}
 	}
 			
-	else if (strcasecmp(command,"PART")==0){
+	else if (strcasecmp(command,"PART") == 0){
 		channel *C;
 
 		get_next_param(cmdparam, dest);		
 
 		// if i'm leaving, turn off the active flag in this channel
-		C = channel_by_name(dest);
+		C = channel_by_name(dest, currentserver);
 		if (C != NULL){
 			remove_user(C, cmdnick);
 			vprint_channel_attrib(C, JOIN_COLOR, "%s has left %s\n", cmdnick, dest);
@@ -3005,8 +3382,8 @@ void parse_message(server *currentserver, char *buffer){
 		current=screenlist; 
 		while(current != NULL){
 			if (current->type == CHANNEL){
-				if (remove_user (current->screen, cmdnick)){
-					vprint_channel_attrib(current->screen, JOIN_COLOR, "%s has quit IRC, %s\n", cmdnick, message);
+				if (remove_user (current->info, cmdnick)){
+					vprint_channel_attrib(current->info, JOIN_COLOR, "%s has quit IRC, %s\n", cmdnick, message);
 				}
 			}
 			current=current->next;
@@ -3015,8 +3392,17 @@ void parse_message(server *currentserver, char *buffer){
 	
 	else if (strcasecmp(command,"NOTICE")==0){
 		get_next_param(cmdparam, dest);
-		get_next_param(cmdparam, message); 
-		vprint_all_attrib(NOTICE_COLOR, "%s\n", message);
+		get_next_param(cmdparam, message);
+
+		// vprint_all_attrib(NOTICE_COLOR, "%s -> %s : %s\n", cmdnick, dest, buffer);
+		/* if the notice is for the nick, put it in the server screen */
+		if (strcmp(currentserver->nick, dest) == 0){
+			vprint_server_attrib(currentserver, NOTICE_COLOR, "\002[%s]\002 %s\n", cmdnick, message);
+		}
+		/* if the notice is directed to a channel, put it in that channel */
+		else if (channel_by_name(dest, currentserver)){ 
+			vprint_channel_attrib(channel_by_name(dest, currentserver), NOTICE_COLOR, "\002[%s]\002 %s\n", cmdnick, message);
+		}
 	}
 		
 	// :user!host@domain KICK #channel nick :message
@@ -3027,7 +3413,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest); 				
 		get_next_param(cmdparam, message); 					
 
-		C = channel_by_name(fromchannel);
+		C = channel_by_name(fromchannel, currentserver);
 		if (C != NULL){			
 			vprint_channel_attrib(C, KICK_COLOR, "%s kicks %s, %s\n", cmdnick, dest, message);
 			remove_user(C, dest);
@@ -3044,13 +3430,13 @@ void parse_message(server *currentserver, char *buffer){
 		current=screenlist; 
 		while(current!=NULL){
 			if (current->type == CHANNEL){
-				userstatus = get_user_status(current->screen, cmdnick, &op, &voice);
+				userstatus = get_user_status(current->info, cmdnick, &op, &voice);
 
-				if (remove_user (current->screen, cmdnick)){
-					vprint_channel_attrib(current->screen, RENAME_COLOR, "%s is now known as %s\n", cmdnick, dest);
+				if (remove_user (current->info, cmdnick)){
+					vprint_channel_attrib(current->info, RENAME_COLOR, "%s is now known as %s\n", cmdnick, dest);
 					/* preserve user status (op, voice) */
-					add_user(current->screen, dest, op, voice);		
-					set_channel_update_status(current->screen, U_ALL_REFRESH);
+					add_user(current->info, dest, op, voice);		
+					set_channel_update_status(current->info, U_ALL_REFRESH);
 				}
 			}
 			current=current->next;
@@ -3071,7 +3457,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest); 				
 		get_next_param(cmdparam, message);
 
-		C = channel_by_name(dest);
+		C = channel_by_name(dest, currentserver);
 		if (cmdparam[0] != 0){ 					
 			if (C == NULL){ 
 				vprint_server_attrib(currentserver, MODE_COLOR, "%s sets mode %s %s for %s\n", 
@@ -3100,12 +3486,12 @@ void parse_message(server *currentserver, char *buffer){
 	else if (strcasecmp(command, "INVITE") == 0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(INVITE_COLOR, "%s has been invited to join %s\n", dest, message);
+		vprint_server_attrib(currentserver, INVITE_COLOR, "%s has been invited to join %s\n", dest, message);
 	}
 
 	/* error message */	
 	else if (strcasecmp(command, "ERROR") == 0){
-		vprint_all_attrib(ERROR_COLOR, "%c%d,%d%s\n", cmdparam );
+		vprint_server_attrib(currentserver, ERROR_COLOR, "%s\n", cmdparam);
 		print_all(touser);				
 	}
 
@@ -3398,7 +3784,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, url);
 					
 		sprintf(touser, "Channel %s website can be found at %s\n", channelname, url);
-		print_channel(channel_by_name(channelname), touser);
+		print_channel(channel_by_name(channelname, currentserver), touser);
 	}
 	
 	// :lineone.uk.eu.dal.net 332 _sn00p_ #dc-isoz :ab0,1[Welcome to #DC-iSOZ]
@@ -3413,7 +3799,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, fromchannel);
 		get_next_param(cmdparam, message);
 
-		C = channel_by_name(fromchannel);
+		C = channel_by_name(fromchannel, currentserver);
 		sprintf(touser, "%s\n", message);
 		print_channel(C, touser);	
 	}
@@ -3436,7 +3822,7 @@ void parse_message(server *currentserver, char *buffer){
 		
 		starttime_t = atol(starttime);
 		startdate = ctime(&starttime_t);
-		C = channel_by_name(fromchannel);
+		C = channel_by_name(fromchannel, currentserver);
 		sprintf(touser, "Channel topic set by %s on %s\n", startnick, startdate);
 		print_channel(C, touser);	
 	}
@@ -3455,9 +3841,16 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, channelname);
 		get_next_param(cmdparam, userstring);
 
-		C = channel_by_name(channelname);
+		C = channel_by_name(channelname, currentserver);
 		//sprintf(scratch, "Nick:%s Channel:%s OP:%s Users:%s\n", dest, channelname, prefix, userstring);
-		//printf("%s\n", command);	
+		//printf("%s\n", command);
+
+		/* if the list has already been received, and we get new entries,  */
+		/* user probably used /names to get new list so delete the old one */ 
+		if (C != NULL && C->userliststate == 1){
+			C->userliststate = 0;
+			remove_all_users(C);
+		}
 		while(get_next_word(userstring, user)){
 			bzero(scratch, 63);
 			sprintf(scratch, " %-.9s\n", user);
@@ -3471,10 +3864,11 @@ void parse_message(server *currentserver, char *buffer){
 
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, fromchannel); 
-		C = channel_by_name(fromchannel);
+		C = channel_by_name(fromchannel, currentserver);
 		if (C != NULL){
 			C->top = C->userlist;
 			C->selected = C->userlist;
+			C->userliststate = 1;
 			set_channel_update_status(C, U_USER_REFRESH);
 			// refresh_user_list(C);
 		}
@@ -3492,7 +3886,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "%s: %s.\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s: %s\n", message, dest); 
 	}
 
 	/* no such channel */
@@ -3500,7 +3894,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "%s: %s.\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s: %s\n", message, dest); 
 	}
 
 	/* Cannot send to channel */
@@ -3508,14 +3902,15 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "%s: %s.\n", message, dest); 
+		vprint_all_attrib(ERROR_COLOR, "%s: %s\n", message, dest); 
 	}
 
 	/* List output too large */
 	else if (strcmp(command,"416")==0){
 		get_next_param(cmdparam, dest);
+		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "Error processing command %s, %s.\n", message, cmdparam); 
+		vprint_all_attrib(ERROR_COLOR, "Error processing command %s, %s\n", dest, message); 
 	}
 
 	/* Unknown command */
@@ -3523,7 +3918,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "Unknown command: %s.\n", dest); 
+		vprint_all_attrib(ERROR_COLOR, "Unknown command: %s\n", dest); 
 	}
 
 	/* Nick held */
@@ -3532,7 +3927,7 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "%s.\n", dest); 
+		vprint_server_attrib(currentserver, ERROR_COLOR, "%s\n", dest); 
 	}
 
 	/* nick already in use */
@@ -3540,19 +3935,19 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "%s\n", message); 
+		vprint_server_attrib(currentserver, ERROR_COLOR, "%s\n", message); 
 
 		/* if first configuration nick is taken try the alternate */
 		if (strcmp(currentserver->nick, configuration.nick) == 0 && currentserver->nickinuse != 2){
 			currentserver->nickinuse = 2;
-			vprint_all_attrib(MESSAGE_COLOR, "Primary nick taken, trying alternate nick.\n", dest); 
+			vprint_server_attrib(currentserver, MESSAGE_COLOR, "Primary nick taken, trying alternate nick\n", dest); 
 			sendcmd_server(currentserver, "NICK", configuration.alt_nick, "", "");
 			sendcmd_server(currentserver, "MODE", configuration.mode, configuration.alt_nick, "");
 			strcpy(currentserver->lastnick, currentserver->nick);
 			strcpy(currentserver->nick, configuration.alt_nick);
 		}
 		else{
-			vprint_all_attrib(MESSAGE_COLOR, "Use /nick to select a different nickname.\n", dest); 
+			vprint_server_attrib(currentserver, MESSAGE_COLOR, "Use /nick to select a different nickname\n", dest); 
 			strcpy(currentserver->nick, currentserver->lastnick);
 		}
 		set_statusline_update_status(statusline, U_ALL);
@@ -3563,16 +3958,23 @@ void parse_message(server *currentserver, char *buffer){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "You are not in channel %s.\n", dest); 
+		vprint_all_attrib(ERROR_COLOR, "You are not in channel %s\n", dest); 
 	}
 	
 	/* register first */
 	else if (strcmp(command, "451")==0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(ERROR_COLOR, "%s\n", message); 
-		vprint_all_attrib(MESSAGE_COLOR, "Make sure you have logged in correctly and used the proper nickname.\n"); 
-		print_server(currentserver, touser);
+		vprint_server_attrib(currentserver, ERROR_COLOR, "%s\n", message); 
+		vprint_server_attrib(currentserver, MESSAGE_COLOR, "Make sure you have logged in correctly and used the proper nickname\n"); 
+	}
+
+	/* not enough user parameters */
+	else if (strcmp(command, "461")==0){
+		get_next_param(cmdparam, dest);
+		get_next_param(cmdparam, message); 
+		vprint_server_attrib(currentserver, ERROR_COLOR, "%s\n", message); 
+		vprint_server_attrib(currentserver, MESSAGE_COLOR, "Please select \002Options\002->\002Identity\002 and enter all the required information\n"); 
 	}
 
 	/* Cannot join channel (+i) */
@@ -3594,8 +3996,9 @@ void parse_message(server *currentserver, char *buffer){
 	/* identify to a registered nick */
 	else if (strcmp(command,"477")==0){
 		get_next_param(cmdparam, dest);
+		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
-		vprint_all_attrib(MESSAGE_COLOR, "%s\n", message); 
+		vprint_server_attrib(currentserver, MESSAGE_COLOR, "%s\n", message); 
 	}
 
 	/* not an op */
@@ -3607,7 +4010,7 @@ void parse_message(server *currentserver, char *buffer){
 	}
 	
 	/* if this is an unknown numeric command, just print it to the screen */
-	else if (atoi(command)>0){
+	else if (atoi(command) > 0){
 		get_next_param(cmdparam, dest);
 		get_next_param(cmdparam, message); 
 		vprint_server(currentserver, "(%s -> %s) %s %s\n", command, dest, message, cmdparam);
@@ -3728,187 +4131,4 @@ int remove_resize_handler(){
  
 	return(err);
 }
-
-/* communication functions ******************************************************/
-
-
-int disconnect_from_server (server *S){
-	char buffer[MAXDATASIZE];
-
-	sprintf(buffer,"QUIT\n");
-	send_all(S->serverfd, buffer, strlen(buffer));
-	S->active = 0;
-	close(S->serverfd);
-	vprint_all_attrib(MESSAGE_COLOR, "Disconnected from %s\n", S->server);
-	set_statusline_update_status(statusline, U_ALL_REFRESH);
-	screenupdated = 1;
-	return(1);
-}	
-
-int connect_to_server (server *S){
-	char buffer[MAXDATASIZE];
-	static struct sockaddr_in their_addr;
-	static struct hostent *host;
-
-	// get the name of the host 
-
-	S->active=0;
-	alarm_occured=0;
-	alarm(CONNECTTIMEOUT);
-
-	// connect to a server one step at a time returning to report messages after each step
-
-	if (S->connect_status == 0){
-		strcpy(S->user, configuration.user);
-		strcpy(S->host, configuration.hostname);
-		strcpy(S->domain, configuration.domain);
-		strcpy(S->name, configuration.userdesc);
-		strcpy(S->nick, configuration.nick);
-		strcpy(S->lastnick, configuration.nick);
-
-		if ((S->serverfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-			vprint_all_attrib(ERROR_COLOR, "Error: Cannot create a socket\n");
-			S->connect_status = -1;
-			return(0);
-		}
-		else{
-			vprint_all_attrib(MESSAGE_COLOR, "Looking up %s ...\n", S->server);
-			S->connect_status = 1;
-			return(1);
-		}
-	}
-
-	if (S->connect_status == 1){
-		if ((host = gethostbyname(S->server)) == NULL) {
-			vprint_all_attrib(ERROR_COLOR, "Error: Cannot find host %s\n", S->server);
-			S->connect_status = -1;
-			return(0);
-		}
-		else {
-			vprint_all_attrib(MESSAGE_COLOR, "Connecting to %s (%s) on port %d ...\n", 
-				host->h_name, inet_ntoa(*((struct in_addr*)host->h_addr)), S->port);
-			S->connect_status = 2;
-			return(1);
-		}
-	}
-
-	if (S->connect_status == 2){
-		their_addr.sin_family = AF_INET;                                            
-		their_addr.sin_port = htons(S->port);                              
-		their_addr.sin_addr = *((struct in_addr *)host->h_addr);
-		bzero(&(their_addr.sin_zero), 8);
-	        if (connect (S->serverfd, (struct sockaddr *)&their_addr, sizeof(struct sockaddr)) == -1) {
-			vprint_all_attrib(ERROR_COLOR, "Failed to connect to host %s (%s) on port %d ...\n", 
-				host->h_name, inet_ntoa(*((struct in_addr *)host->h_addr)), S->port);
-			S->connect_status = -1;
-			return(0);
-		}
-		vprint_all_attrib(MESSAGE_COLOR, "Connected to %s (%s) on port %d ...\n", 
-			host->h_name, inet_ntoa(*((struct in_addr*)host->h_addr)), S->port);
-		S->connect_status = 3;
-		return(1);
-	}
-
-	if (S->connect_status == 3){
-		vprint_all_attrib(MESSAGE_COLOR, "Logging on as %s ...\n", S->nick);
-
-		S->nickinuse = 1;
-		sprintf(buffer,"USER %s %s %s :%s\n",S->user, S->host, S->domain, S->name);
-		send_all(S->serverfd, buffer, strlen(buffer));
-		if (strlen(S->password)){
-			sprintf(buffer,"PASS %s\n", S->password);
-			send_all(S->serverfd, buffer, strlen(buffer));
-		}
-		sprintf(buffer,"NICK :%s\n",S->nick);
-		send_all(S->serverfd, buffer, strlen(buffer));
-		sprintf(buffer,"MODE %s +%s\n",S->nick, configuration.mode);
-		send_all(S->serverfd, buffer, strlen(buffer));
-		S->connect_status = -1;
-        	if (alarm_occured) return (0);
-		else {
-			fcntl(S->serverfd, F_SETFL, O_NONBLOCK);
-			S->active=1;
-			set_statusline_update_status(statusline, U_ALL_REFRESH);
-			screenupdated = 1;
-			return(1);
-		}
-	}	
-	return(0);
-}	
-
-void sendcmd_server(server *S, char *command, char *args, char *dest, char *nick){
-	char scratch[MAXDATASIZE];
-	
-	if (strlen(nick)==0 && strlen(dest)==0 && strlen(args)==0){
-		sprintf(scratch, "%s\n", command); 
-	}
-	else if (strlen(nick)==0 && strlen(dest)==0){
-		sprintf(scratch, "%s :%s\n", command, args); 
-	}
-	else if (strlen(args)==0 && strlen(dest)>0){
-		sprintf(scratch, ":%s %s %s\n", nick, command, dest); 
-	}
-	else {
-		sprintf(scratch, ":%s %s %s :%s\n", nick, command, dest, args); 
-	}
-	// print_server((char *)S, scratch);
-	send_all(S->serverfd, scratch, strlen(scratch));
-
-}
-
-void sendmsg_channel(channel *C, char *message){
-	if (C!=NULL && message!=NULL){
-		 sendcmd_server(C->server, "PRIVMSG", message, C->channel, (C->server)->nick);
-	}
-}
-
-void sendmsg_chat(chat *C, char *message){
-	if (C!=NULL && message!=NULL){
-		 sendcmd_server(C->server, "PRIVMSG", message, C->nick, (C->server)->nick);
-	}
-}
-
-void sendmsg_dcc_chat(dcc_chat *C, char *message){
-	char scratch[MAXDATASIZE];
-	
-	if (C!=NULL && message!=NULL){
-		sprintf(scratch, "%s\n", message); 
-		send_all(C->dccfd, scratch, strlen(scratch));
-	}
-}
-
-void send_current_server(char *message){
-	char scratch[MAXDATASIZE];
-	bzero(scratch, MAXDATASIZE);
-
-	//if (message[strlen(message)-1]!='\n') strcat(message, "\n");
-	sprintf(scratch, "%s\n", message);
-	send_all(get_serverfd(currentscreen), scratch, strlen(scratch));
-}
-
-void send_server(server *S, char *template, ...){
-	char message[MAXDATASIZE];
-	char scratch[MAXDATASIZE];
-        va_list ap;
-
-        va_start(ap, template);
-        vsprintf(message, template, ap);
-        va_end(ap);
-	sprintf(scratch, "%s\n", message);
-	send_all(S->serverfd, scratch, strlen(scratch));
-}
-
-int get_serverfd(screen *screen){
-	if (screen->type==SERVER) return (((server *)(screen->screen))->serverfd);
-	else if (screen->type==CHANNEL) return (((server *)((channel *)(screen->screen))->server)->serverfd);
-	else if (screen->type==CHAT) return (((server *)((chat *)(screen->screen))->server)->serverfd);
-	else return(-1);
-}
-
-server *get_server(screen *screen){
-	if (screen->type==SERVER) return ((server *)(screen->screen));
-	else if (screen->type==CHANNEL) return ((server *)((channel *)(screen->screen))->server);
-	else return (NULL);
-}
- 
 

@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2004 Adrian Gonera                                         */
+/*  Copyright (C) 2005 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -53,6 +53,8 @@
 #include "cevents.h"
 #include "common.h"
 #include "screen.h"
+#include "comm.h"
+
 extern screen *screenlist;
 extern screen *currentscreen;
 
@@ -60,67 +62,94 @@ int screenupdated;
 
 /* screen ***********************************************************************************************/
 
-screen *add_screen (void *screenptr, int type){
-	screen *current = screenlist;
+screen *add_screen (void *infoptr, int type, screen *parent, int sortvalue, int flags){
+	screen *current, *last;
 	screen *new = NULL;
+	void *lastparent;
+	int parentpassed = 0;
 	
 	screenupdated = 1;
-        if (screenlist==NULL){
-                current=calloc(sizeof(screen), 1);
-                if (current==NULL){
-			plog("Cannot allocate screen memory in add_screen(:1)\n");   
-			exit(MEMALLOC_ERR);   
-		}
-		current->next=NULL;
-		current->prev=NULL;
-		current->screen=screenptr;
-		current->type=type;
-		current->scrollpos=0;
-		current->scrolling=0;
-		current->update=U_ALL;
-		current->hidden=0;
-		screenlist = current; 
-		return(current);
-		
-	}
-	else{
-		while(current!=NULL){
-			if (current->next==NULL){
-				new=calloc(sizeof(screen), 1);
-                		if (new==NULL){
-					plog("Cannot allocate screen memory in add_screen(:2)\n");   
-					exit(MEMALLOC_ERR);   
-				}
-				current->next=new;
-				new->next=NULL;
-				new->prev=current;
-				new->type=type;
-				new->screen=screenptr;
-				new->scrollpos=0;
-				new->scrolling=0;
-				new->update=U_ALL;
-				new->hidden=0;
+	if (parent == NULL) parentpassed = 1;
 
-				break;
-			}
-			current=current->next;
-		}		
+	new = calloc(sizeof(screen), 1);
+	if (new == NULL){
+		plog ("Cannot allocate screen memory in add_screen(:1)\n");   
+		exit(MEMALLOC_ERR);   
+	}
+
+	new->next = NULL;
+	new->prev = NULL;
+	new->info = infoptr;
+	new->type = type;
+	new->scrollpos = 0;
+	new->scrolling = 0;
+	new->update = U_ALL;
+	new->hidden = 0;
+	new->sortvalue = sortvalue;
+	new->flags = flags;
+	new->parent = parent;
+
+	if (screenlist == NULL){
+		screenlist = new; 	
 		return(new);
-	}	
+	}
+
+	//S1(NULL) -> S2(NULL) + L(S1)
+
+	current = screenlist;
+	while(1){
+
+		if (current == NULL){
+			new->next = NULL;
+			new->prev = last;
+			last->next = new;
+			break;
+		}
+
+
+		/* if this screen has no parent, put it past child screens according to sort value */
+		else if ((parent == NULL && current->sortvalue > sortvalue && current->parent == NULL)
+
+		/* or if this screen has a parent, put it in or at the end of parent list */
+		|| (parent != NULL && parentpassed && (current->sortvalue > sortvalue || current->parent != parent))){
+
+		//else if (parentpassed && (current->sortvalue > sortvalue || current->parent != parent) &&
+		//	(current->parent != lastparent)){
+			new->next = current;
+			new->prev = current->prev;
+			if (current->prev != NULL) (current->prev)->next = new;
+			else screenlist = new;
+			current->prev = new;
+			break;
+		}
+		if (current == parent) parentpassed = 1;
+		if (current->parent == NULL) lastparent = current;
+
+		last = current;
+		current = current->next;
+	}		
+	return(new);
 }
 
-void remove_screen(screen *Current){
+void remove_screen(screen *current){
 	screen *Previous;
 	screen *Next;
 
+	if (current->type == SERVER) end_server(current->info);
+	else if (current->type == CHANNEL) end_channel(current->info);
+	else if (current->type == CHAT) end_chat(current->info);
+	else if (current->type == DCCCHAT) end_dccchat(current->info);
+	else if (current->type == LIST) end_list(current->info);
+	// else if (current->type == HELP) end_help(current->info);
+
 	screenupdated = 1;
-	Previous = Current->prev;
-	Next = Current->next;
+	Previous = current->prev;
+	Next = current->next;
           
 	if (Next != NULL) Next->prev = Previous;
 	if (Previous != NULL) Previous->next = Next;
-	if (screenlist == Current) screenlist = Next;
-        free (Current);
+	if (screenlist == current) screenlist = Next;
+        free (current);
 }
 
 void hide_screen(screen *Current, int hide){
@@ -239,7 +268,8 @@ int print_screen_opt(WINDOW *win, char *buffer, int linelen, int indent, int att
 					for (i=0; i<indent; i++) waddch(win, ' ');
 				}
 				for (i=0; i<linepos; i++){
-					if (isprint((unsigned char)strbuffer[strpos+i]) || strbuffer[strpos+i] == '\n'){
+					//if (isprint((unsigned char)strbuffer[strpos+i]) || strbuffer[strpos+i] == '\n'){
+					if (strbuffer[strpos+i] >= 32 || strbuffer[strpos+i] == '\n'){
 						wattrset(win, attrbuffer[strpos+i]);	
 						waddch(win, strbuffer[strpos+i]);
 						printed++;
@@ -257,7 +287,8 @@ int print_screen_opt(WINDOW *win, char *buffer, int linelen, int indent, int att
 					}
 				}
 				for (i=0; strpos+i < j; i++){
-					if (isprint((unsigned char)strbuffer[strpos+i]) || strbuffer[strpos+i] == '\n'){
+					//if (isprint((unsigned char)strbuffer[strpos+i]) || strbuffer[strpos+i] == '\n'){
+					if (strbuffer[strpos+i] >= 32 || strbuffer[strpos+i] == '\n'){
 						wattrset(win, attrbuffer[strpos+i]);	
 						waddch(win, strbuffer[strpos+i]);
 						printed++;
@@ -276,11 +307,11 @@ void print_all(char *buffer){
 
         current=screenlist;
         while(current!=NULL){
-		if (current->type==SERVER) print_server (current->screen, buffer);
-		else if (current->type==CHANNEL) print_channel (current->screen, buffer);
-		else if (current->type==CHAT) print_chat (current->screen, buffer);
-		else if (current->type==DCCCHAT) print_dcc_chat (current->screen, buffer);
-		else if (current->type==HELP) print_help (current->screen, buffer);
+		if (current->type==SERVER) print_server (current->info, buffer);
+		else if (current->type==CHANNEL) print_channel (current->info, buffer);
+		else if (current->type==CHAT) print_chat (current->info, buffer);
+		else if (current->type==DCCCHAT) print_dcc_chat (current->info, buffer);
+		else if (current->type==HELP) print_help (current->info, buffer);
 		current=current->next;
 	}
 }
@@ -290,11 +321,11 @@ void print_all_attrib(char *buffer, int attrib){
 
         current=screenlist;
         while(current!=NULL){
-		if (current->type==SERVER) print_server_attrib (current->screen, buffer, attrib);
-		else if (current->type==CHANNEL) print_channel_attrib (current->screen, buffer, attrib);
-		else if (current->type==CHAT) print_chat_attrib (current->screen, buffer, attrib);
-		else if (current->type==DCCCHAT) print_dcc_chat_attrib (current->screen, buffer, attrib);
-		else if (current->type==HELP) print_help_attrib (current->screen, buffer, attrib);
+		if (current->type==SERVER) print_server_attrib (current->info, buffer, attrib);
+		else if (current->type==CHANNEL) print_channel_attrib (current->info, buffer, attrib);
+		else if (current->type==CHAT) print_chat_attrib (current->info, buffer, attrib);
+		else if (current->type==DCCCHAT) print_dcc_chat_attrib (current->info, buffer, attrib);
+		else if (current->type==HELP) print_help_attrib (current->info, buffer, attrib);
 		current=current->next;
 	}
 }
@@ -332,21 +363,21 @@ void set_message_scrolling(screen *screen, int scroll){
 }
 
 void redraw_screen(screen *current){
-	if (current->type==SERVER) redraw_server_screen(current->screen);
-	else if (current->type==CHANNEL) redraw_channel_screen(current->screen);
-	else if (current->type==TRANSFER) redraw_transfer_screen(current->screen);
-	else if (current->type==CHAT) redraw_chat_screen(current->screen);
-	else if (current->type==DCCCHAT) redraw_dccchat_screen(current->screen);
-	else if (current->type==LIST) redraw_list_screen(current->screen);
+	if (current->type==SERVER) redraw_server_screen(current->info);
+	else if (current->type==CHANNEL) redraw_channel_screen(current->info);
+	else if (current->type==TRANSFER) redraw_transfer_screen(current->info);
+	else if (current->type==CHAT) redraw_chat_screen(current->info);
+	else if (current->type==DCCCHAT) redraw_dccchat_screen(current->info);
+	else if (current->type==LIST) redraw_list_screen(current->info);
 }
 	
 void refresh_screen(screen *current){
-	if ((current->type)==SERVER) refresh_server_screen(current->screen);
-	else if ((current->type)==CHANNEL) refresh_channel_screen(current->screen);
-	else if ((current->type)==CHAT) refresh_chat_screen(current->screen);
-	else if ((current->type)==DCCCHAT) refresh_dccchat_screen(current->screen);
-	else if ((current->type)==TRANSFER) refresh_transfer_screen(current->screen);
-	else if (current->type==LIST) refresh_list_screen(current->screen);
+	if ((current->type)==SERVER) refresh_server_screen(current->info);
+	else if ((current->type)==CHANNEL) refresh_channel_screen(current->info);
+	else if ((current->type)==CHAT) refresh_chat_screen(current->info);
+	else if ((current->type)==DCCCHAT) refresh_dccchat_screen(current->info);
+	else if ((current->type)==TRANSFER) refresh_transfer_screen(current->info);
+	else if (current->type==LIST) refresh_list_screen(current->info);
 
 }
 
@@ -364,12 +395,12 @@ int update_status(screen *S){
 }
 
 void set_screen_update_status(screen *scr, int update){
-        if (scr->type==SERVER) set_server_update_status(scr->screen, update);
-        else if (scr->type==TRANSFER) set_transfer_update_status(scr->screen, update);
-        else if (scr->type==LIST) set_list_update_status(scr->screen, update);
-        else if (scr->type==CHANNEL) set_channel_update_status(scr->screen, update);
-        else if (scr->type==CHAT) set_chat_update_status(scr->screen, update);
-        else if (scr->type==DCCCHAT) set_dccchat_update_status(scr->screen, update);
+        if (scr->type==SERVER) set_server_update_status(scr->info, update);
+        else if (scr->type==TRANSFER) set_transfer_update_status(scr->info, update);
+        else if (scr->type==LIST) set_list_update_status(scr->info, update);
+        else if (scr->type==CHANNEL) set_channel_update_status(scr->info, update);
+        else if (scr->type==CHAT) set_chat_update_status(scr->info, update);
+        else if (scr->type==DCCCHAT) set_dccchat_update_status(scr->info, update);
 }
               
 screen *select_next_screen(screen *currentscreen){
@@ -416,7 +447,7 @@ screen *select_prev_screen(screen *currentscreen){
 
 screen *select_screen(screen *screen){
         // currentmenusline->current = -1;
-        if (currentscreen->type == CHANNEL) ((channel *)(currentscreen->screen))->selecting = 0;
+        if (currentscreen->type == CHANNEL) ((channel *)(currentscreen->info))->selecting = 0;
 
         refresh_screen(screen);
         set_screen_update_status(screen, U_ALL_REFRESH);
@@ -489,7 +520,7 @@ int process_screen_events(screen *screen, int key){
 
 
 int create_server_screen(server *S){
-	if (S==NULL) return (0);
+	if (S == NULL) return (0);
 
 	S->message = newpad(BUFFERLINES, COLS);
 	scrollok(S->message, TRUE);
@@ -502,7 +533,7 @@ int create_server_screen(server *S){
 }
 
 int delete_server_screen(server *S){
-	if (S==NULL) return (0);
+	if (S == NULL) return (0);
 	delwin(S->message);
 	return(1);
 }
@@ -519,14 +550,23 @@ server *add_server(char *servername, int port, char *nick, char *user, char *hos
 	new->update = 0;
 	new->connect_status = -1;
 	new->active = 0;
+	new->bufferoffset = 0;
 	strcpy(new->nick, nick);
 	strcpy(new->user, user);
 	strcpy(new->host, host);
 	strcpy(new->domain, domain);
 	strcpy(new->name, name);
-	currentscreen = add_screen((void*)new, SERVER);
+	currentscreen = add_screen((void*)new, SERVER, NULL, SERVER_SORT_ORDER, 0);
 	create_server_screen(new);
+	new->screen = currentscreen;
 	return(new);
+}
+
+void end_server(server *S){
+	if (S == NULL) return;
+	disconnect_from_server(S);
+	delete_server_screen(S);
+	free(S);
 }
 
 int redraw_server_screen(server *S){
@@ -634,9 +674,18 @@ channel *add_channel(char *channelname, server *server){
 	new->top=NULL;
 	new->selected=NULL;
 	new->selecting = 0;
-	currentscreen = add_screen((void*)new, CHANNEL);
+	currentscreen = add_screen((void*)new, CHANNEL, server->screen, CHANNEL_SORT_ORDER, 0);
 	create_channel_screen(new);
+	new->screen = currentscreen;
 	return(new);
+}
+
+void end_channel(channel *C){
+	if (C == NULL) return;
+	if (C->active) sendcmd_server(C->server, "PART", "", C->channel, C->server->nick);
+	remove_all_users(C);
+	delete_channel_screen(C);
+	free (C);
 }
 
 void refresh_channel_screen(channel *C){
@@ -774,13 +823,6 @@ int user_win_offset(channel *C){
 	return(pos);
 }
 	
-void end_channel(channel *C){
-	// if (C->active) sendcmd_server(C->server, "PART", "", C->channel, (C->server)->nick);
-	remove_all_users(C);
-	delete_channel_screen(C);
-	free (C);
-}
-
 int add_user(channel *C, char *nick, int op, int voice){
 	user *current, *last, *new;
 	char tempnick[MAXNICKLEN + 3];
@@ -999,7 +1041,7 @@ void quit_user(char *nick){
                                 
         current=screenlist;
         while(current!=NULL){
-                if (current->type==CHANNEL) remove_user (current->screen, nick);
+                if (current->type==CHANNEL) remove_user (current->info, nick);
                 current=current->next;
         }
 }
@@ -1007,13 +1049,18 @@ void quit_user(char *nick){
 void remove_all_users(channel *C){
 	user *current, *next;
 
-	current=C->userlist;
-	while (current!=NULL){
-		next=current->next;
-        	free (current);
-		current=next;
+	if (C != NULL){
+		current = C->userlist;
+		while (current != NULL){
+			next = current->next;
+	        	free (current);
+			current = next;
+		}
+		C->userlist = NULL;
+		C->selected = NULL;
+		C->top = NULL;
+		set_channel_update_status(C, U_USER_REFRESH);
 	}
-	set_channel_update_status(C, U_USER_REFRESH);
 }
 
 void select_next_user(channel *C){
@@ -1208,8 +1255,9 @@ chat *add_chat(char *chatname, server *server){
         new->server=server;
 	new->update = 0;
         strcpy(new->nick, chatname);
-        currentscreen = add_screen((void*)new, CHAT);
+        currentscreen = add_screen((void*)new, CHAT, server->screen, CHAT_SORT_ORDER, 0);
 	create_chat_screen(new);
+	new->screen = currentscreen;
         return(new);
 }
 
@@ -1320,8 +1368,9 @@ dcc_chat *add_incoming_dcc_chat(char *nick, char *dest, server *s, unsigned long
 	new->server = s;
 	new->allowed = 0;
 	new->direction = DCC_RECEIVE;
-	currentscreen = add_screen((void*)new, DCCCHAT);
+	currentscreen = add_screen((void*)new, DCCCHAT, NULL, DCCCHAT_SORT_ORDER, 0);
 	create_dccchat_screen(new);
+	new->screen = currentscreen;
 	return(new);
 }
 
@@ -1342,9 +1391,17 @@ dcc_chat *add_outgoing_dcc_chat(char *nick, char *dest, server *s){
 	new->server = s;
 	new->allowed = 1;
 	new->direction = DCC_SEND;
-	currentscreen = add_screen((void*)new, DCCCHAT);
+	currentscreen = add_screen((void*)new, DCCCHAT, NULL, DCCCHAT_SORT_ORDER, 0);
 	create_dccchat_screen(new);
+	new->screen = currentscreen;
 	return(new);
+}
+
+void end_dccchat(dcc_chat *D){
+	if (D == NULL) return;
+	disconnect_dccchat(D);
+	delete_dccchat_screen(D);
+	free (D);
 }
 
 void refresh_dccchat_screen(dcc_chat *C){
@@ -1417,14 +1474,9 @@ void vprint_dcc_chat(dcc_chat *C, char *template, ...){
 	print_dcc_chat(C, string);
 }
 
-void end_dccchat(dcc_chat *D){
-	close(D->dccfd);
-	delete_dccchat_screen(D);
-	free (D);
-}
-
 void disconnect_dccchat(dcc_chat *D){
-	close(D->dccfd);
+	if (D == NULL) return;
+	if (D->active) close(D->dccfd);
 	D->active = 0;	
 	print_dcc_chat(D, "Disconnected.\n");
 }
@@ -1455,6 +1507,7 @@ int create_transfer_screen(transfer *T){
 
 transfer *add_transfer(char *name){
 	transfer *new;
+	screen *newscreen;
 
 	new=(transfer *)calloc(sizeof(transfer), 1);
 	if (new==NULL){
@@ -1463,8 +1516,9 @@ transfer *add_transfer(char *name){
 	new->dcclist = NULL;
 	new->dcclisttop = NULL;
 	strcpy(new->name, name);
-	add_screen((void*)new, TRANSFER);
+	newscreen = add_screen((void*)new, TRANSFER, NULL, TRANSFER_SORT_ORDER, 0);
 	create_transfer_screen(new);
+	new->screen = newscreen;
 	return(new);
 }
 
@@ -1508,6 +1562,12 @@ int create_list_screen(list *L){
 	return(1);
 }
 
+int delete_list_screen(list *L){
+        if (L==NULL) return (0);
+        delwin(L->message);
+        return(1);
+}
+
 list *add_list(server *server){
 	list *new;
 
@@ -1521,11 +1581,21 @@ list *add_list(server *server){
 	new->selected = NULL;
 	new->server = server;
 	new->usinglist = LIST_SORT_CHANNEL;
+	new->viewchannels = 0;
+	new->listchannels = 0;
 	strcpy(new->servername, server->server);
-	currentscreen = add_screen((void*)new, LIST);
+	currentscreen = add_screen((void*)new, LIST, server->screen, LIST_SORT_ORDER, 0);
 	create_list_screen(new);
 	set_list_update_status(new, U_ALL);
+	new->screen = currentscreen;
 	return(new);
+}
+
+void end_list(list *L){
+	if (L == NULL) return;
+	delete_list_screen(L);
+	/*** delete all list members ***/
+	free(L);
 }
 
 int redraw_list_screen(list *L){
@@ -1609,6 +1679,9 @@ int add_list_channel(list *L, char *channel, int users, char *description, int t
 	strcpy(new->channel, channel);
 	strcpy(new->description, description);
 	new->users = users;
+
+	L->listchannels++;
+	L->viewchannels++;
 
 	// unsorted
 	if (type == 0){
@@ -2038,6 +2111,7 @@ int delete_help_screen(help *H){
 
 help *add_help(char *helpname, char *subname, char *filename){
 	help *new;
+	screen *newscreen;
 
 	new=(help *)malloc(sizeof(help));
 	if (new==NULL){
@@ -2045,10 +2119,11 @@ help *add_help(char *helpname, char *subname, char *filename){
 	}
 	strcpy(new->name, helpname);
 	strcpy(new->subname, subname);
-	currentscreen = add_screen((void*)new, HELP);
+	currentscreen = add_screen((void*)new, HELP, NULL, HELP_SORT_ORDER, 0);
 	create_help_screen(new);
 	print_help_file(new, filename);
 	set_help_update_status(new, U_ALL);
+	new->screen = currentscreen;
 	return(new);
 }
 
@@ -2552,223 +2627,5 @@ void unset_statusline_update_status(statuswin *S, int update){
 int statusline_update_status(statuswin *S){
 	if (S != NULL) return (S->update);
 	return(0);	
-}
-
-
-/* misc **************************************************************************************************/
-
-void progress_bar(WINDOW *win, int posy, int posx, int size, int percent){
-	int to_fill; 
-	int i;
-
-	to_fill = (size*percent)/100;
-	wattrset(win, make_color(PROGRESS_COLOR_F, PROGRESS_COLOR_B));
-	wattron(win, A_REVERSE);
-	wattron(win, A_BOLD);
-		for (i=0; i<size; i++){
-		if (i==to_fill+1){
-			if (has_colors){
-				wattrset(win, make_color(PROGRESS_COLOR_F, PROGRESS_COLOR_B));
-				wattron(win, A_REVERSE);
-			}
-			else {
-				wattrset(win, A_NORMAL);
-			}
-		}
-	mvwaddch(win, posy, posx+i, ' ');
-	}
-	wattrset(win, A_NORMAL);
-}
-server *server_by_name(char *servername){
-	screen *current;
-
-	current = server_screen_by_name(servername);
-	if (current != NULL) return (current->screen);
-	return (NULL);
-}
-
-screen *server_screen_by_name(char *servername){
-	screen *current;
-
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==SERVER){
-			if (strcmp(((server *)(current->screen))->server, servername)==0){
-				break;
-			}
-		}
-		current=current->next;
-	}
-	return(current);
-}
-
-channel *channel_by_name(char *channelname){
-	screen *current;
-
-	current = channel_screen_by_name(channelname);
-	if (current != NULL) return (current->screen);
-	return (NULL);
-}
-
-screen *channel_screen_by_name(char *channelname){
-	screen *current;
-
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==CHANNEL){
-			if (strcasecmp(((channel *)(current->screen))->channel, channelname)==0){
-				break;
-			}
-		}
-		current=current->next;
-	}
-	return(current);
-}
-
-chat *chat_by_name(char *chatname){
-	screen *current;
-
-	current = chat_screen_by_name(chatname);
-	if (current != NULL) return (current->screen);
-	return (NULL);
-}
-
-screen *chat_screen_by_name(char *chatname){
-	screen *current;
-
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==CHAT){
-			if (strcasecmp(((chat *)(current->screen))->nick, chatname)==0){
-				break;
-			}
-		}
-		current=current->next;
-	}
-	return(current);
-}
-
-dcc_chat *dcc_chat_by_name(char *chatname){
-	screen *current;
-
-	current = dcc_chat_screen_by_name(chatname);
-	if (current != NULL) return (current->screen);
-	return (NULL);
-}
-
-screen *dcc_chat_screen_by_name(char *chatname){
-	screen *current;
-
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==DCCCHAT){
-			if (strcasecmp(((dcc_chat *)(current->screen))->nick, chatname)==0){
-				break;
-			}
-		}
-		current=current->next;
-	}
-	return(current);
-}
-
-list *list_by_name(char *listname){
-	screen *current;
-
-	current = list_screen_by_name(listname);
-	if (current != NULL) return (current->screen);
-	return (NULL);
-}
-
-list *active_list_by_name(char *listname){
-	screen *current;
-
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==LIST){
-			if (((list *)(current->screen))->active){
-				if (strcasecmp(((list *)(current->screen))->server->server, listname)==0){
-					break;
-				}
-			}
-		}
-		current=current->next;
-	}
-	return(current->screen);
-}
-
-screen *list_screen_by_name(char *listname){
-	screen *current;
-
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==LIST){
-			if (strcasecmp(((list *)(current->screen))->server->server, listname)==0){
-				break;
-			}
-		}
-		current=current->next;
-	}
-	return(current);
-}
-
-list *list_by_server(server *server){
-	screen *current;
-	list *currentlist=NULL;
-
-	// find which chat this chatname belongs to
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==LIST){
-			if (((list *)(current->screen))->server == server){
-				currentlist = (list *)(current->screen);
-				break;
-			}
-		}
-		current=current->next;
-	}
-	return(currentlist);
-}
-
-list *active_list_by_server(server *server){
-	screen *current;
-	list *currentlist=NULL;
-
-	// find which chat this chatname belongs to
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==LIST){
-			if (((list *)(current->screen))->active){
-				if (((list *)(current->screen))->server == server){
-					currentlist = (list *)(current->screen);
-					break;
-				}
-			}
-		}
-		current=current->next;
-	}
-	return(currentlist);
-}
- 
-transfer *transfer_by_name(char *name){
-	screen *current;
-
-	current = transfer_screen_by_name(name);
-	if (current != NULL) return (current->screen);
-	return (NULL);
-}
-
-screen *transfer_screen_by_name(char *name){
-	screen *current;
-
-	current=screenlist;
-	while(current!=NULL){
-		if (current->type==TRANSFER){
-			if (strcmp(((transfer *)(current->screen))->name, name)==0){
-				break;
-			}
-		}
-		current=current->next;
-	}
-	return(current);
 }
 

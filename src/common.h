@@ -83,7 +83,7 @@
 #define MAXSERVERLEN MAXHOSTLEN
 #define MAXCHANNELLEN 64
 #define MAXPASSLEN 256
-
+#define MAXSCREENNAMES 64
 #define MEMALLOC_ERR 2
 
 #define LIST_SORT_USERS 1
@@ -112,7 +112,8 @@ typedef struct config_user_data config_user;
 typedef struct channel_list_channel_info list_channel;
 
 struct screen_list_entry{  
-        void *screen;
+        void *info;
+	screen *parent;
         struct screen_list_entry *prev;
         struct screen_list_entry *next;
         int type;   
@@ -120,9 +121,12 @@ struct screen_list_entry{
 	int scrollpos;
 	int update;
 	int hidden;
+	int sortvalue;
+	int flags;
 };
 
 struct server_info{
+	screen *screen;
 	WINDOW *message;
 	int active;
 	char server[MAXHOSTLEN];
@@ -135,12 +139,16 @@ struct server_info{
 	char name[MAXDESCLEN];
 	char password[MAXPASSLEN];
 	int serverfd;
+	char buffer[MAXDATASIZE * 2];
+	int bufferoffset;
 	int update;
 	int connect_status;
 	int nickinuse;
+	int servernum;
 };
 
 struct channel_info{
+	screen *screen;
 	WINDOW *message;
 	WINDOW *user;
 	WINDOW *vline;
@@ -150,7 +158,7 @@ struct channel_info{
 	user *userlist;
 	user *selected;
 	user *top;
-	int userlist_done;
+	int userliststate;
 	int selecting;
 	server *server;
 	int update;	
@@ -165,6 +173,7 @@ struct nick_info{
 };
 
 struct chat_info{
+	screen *screen;
         WINDOW *message;
         char nick[MAXNICKLEN];   
         server *server;
@@ -172,6 +181,7 @@ struct chat_info{
 };
 
 struct dcc_chat_info{
+	screen *screen;
 	WINDOW *message;
 	int active;
 	int type;
@@ -215,6 +225,7 @@ struct dcc_file_info{
 };
 
 struct transfer_info{
+	screen *screen;
 	WINDOW *message;
 	char name[MAXDESCLEN];
 	dcc_file *dcclist;
@@ -224,6 +235,7 @@ struct transfer_info{
 };
 
 struct channel_list_info{
+	screen *screen;
 	WINDOW *message;
 	int active;
 	server *server;
@@ -236,7 +248,8 @@ struct channel_list_info{
 	list_channel *view;
 	list_channel *top;
 	list_channel *selected;
-	
+	int viewchannels;
+	int listchannels;
 };
 
 struct channel_list_channel_info{
@@ -252,6 +265,7 @@ struct channel_list_channel_info{
 };
 
 struct help_info{
+	screen *screen;
 	WINDOW *message;
 	char name[MAXDESCLEN];
 	char subname[MAXDESCLEN];

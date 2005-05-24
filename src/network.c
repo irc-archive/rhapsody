@@ -78,28 +78,34 @@ int recv_all(int sockfd, char *buffer, int len){
 	return(i);
 }
 
-int recv_line(int sockfd, char *buffer, int len){
-	static char tempbuf[MAXDATASIZE];
-	static int i = 0;
+int recv_line(int sockfd, char *buffer, int *currpos, int maxlen){
 	int numbytes;
 	char temp;
+	int pos;
 
-	buffer[0] = 0;
-	// sprintf(p, "i = %d ; buf = %s\r\n", i, tempbuf);
+	/* get the incoming data until newline is received  */
+	/* if no new bytes arrive, save existing buffer and */
+	/* return later to complete the line                */
+
+	// vprint_all("i = %d ; buf = %s\n", *currpos, buffer);
 	
-	while(i<len-1){
-		numbytes=recv(sockfd, &temp, 1, 0);
+	pos = *currpos;
+
+	while(pos < maxlen - 1){
+		numbytes = recv(sockfd, &temp, 1, 0);
 		if (numbytes  == -1) {
-	        	if (errno==EAGAIN){
+	        	if (errno == EAGAIN){
 				#if (DEBUG & D_SOCKET) 
 					plog ("Read would block in recv_line()");
 				#endif
+				*currpos = pos;
 				return(0);
 			}
 			else {			
 				#if (DEBUG & D_SOCKET)
 					plog ("Error receiving data in recv_line()");
 				#endif
+				*currpos = 0;
 				return(-1);
 			}
 		}	
@@ -111,23 +117,23 @@ int recv_line(int sockfd, char *buffer, int len){
 			return(-1);
 		}		
 		else if (temp == '\r');
+
+		/* return the number of bytes and reset the buffer pointer to 0 */
 		else if (temp == '\n'){
-			tempbuf[i] = 0;
-			strncpy(buffer, tempbuf, MAXDATASIZE);
-			numbytes = i;
-			i = 0;
-			return(numbytes);
+			buffer[pos] = 0;
+			*currpos = 0;
+			return(pos);
 		}
 		else{
-			tempbuf[i] = temp;
-			i++;
+			buffer[pos++] = temp;
 		}
 	}
 	
 	#if (DEBUG & D_SOCKET_BUFFER)
 		plog ("%s\n", buffer);
 	#endif
-	return(i);
+	*currpos = 0;
+	return(pos);
 }
 
 // binary versions

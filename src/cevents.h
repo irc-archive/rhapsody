@@ -73,7 +73,8 @@
 #define E_TRANSFER_INFO 0xb000
 #define E_TRANSFER_STOP 0xb001
 
-
+#define E_EXIT_LASTSERVER 0xc000
+#define E_CLOSE_SERVER 0xc001
 
 #define E_LIST_VIEW 0xb000
 

@@ -1,6 +1,7 @@
+
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2004 Adrian Gonera                                         */
+/*  Copyright (C) 2005 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -280,11 +281,12 @@ void init_all_menus(){
 	ServerMenu[0] = init_menu(1, 1, "Server", 'S');
 	add_menu_item(ServerMenu[0], " Connect New ...              ", "", 0, M_SELECTABLE, E_CONNECT_NEW, NULL);
 	add_menu_item(ServerMenu[0], " Connect Favorite ...         ", "", 0, M_SELECTABLE, E_CONNECT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[0], " Disconnect                   ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
 	add_menu_item(ServerMenu[0], "                              ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ServerMenu[0], " Add to Favorites             ", "", 0, M_SELECTABLE, E_SERVER_ADD_FAVORITE, NULL);
 	add_menu_item(ServerMenu[0], " Edit Favorites ...           ", "", 0, M_SELECTABLE, E_SERVER_EDIT_FAVORITE, NULL);
 	add_menu_item(ServerMenu[0], "                              ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(ServerMenu[0], " Disconnect                   ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
+	add_menu_item(ServerMenu[0], " Close                 Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
 	add_menu_item(ServerMenu[0], " Exit                  Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
 
 	ServerMenu[1] = init_menu(11, 1,"Channel", 'N');
@@ -344,7 +346,6 @@ void init_all_menus(){
 	add_menu_item(ChannelMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ChannelMenu[0], " Leave                    ", "", 0, M_SELECTABLE, E_CHANNEL_PART, NULL);
 	add_menu_item(ChannelMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(ChannelMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ChannelMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
 
 	ChannelMenu[1] = init_menu(12, 1, "Window", 'W');
@@ -408,12 +409,10 @@ void init_all_menus(){
 	add_menu_item(ChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ChatMenu[0], " Ignore                   ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
 	add_menu_item(ChatMenu[0], " Edit Ignore List ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
-	add_menu_item(ChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ChatMenu[0], " Add to Favorites         ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
 	add_menu_item(ChatMenu[0], " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
 	add_menu_item(ChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ChatMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(ChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ChatMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
 
 	ChatMenu[1] = init_menu(9, 1, "Window", 'W');
@@ -438,13 +437,11 @@ void init_all_menus(){
 	add_menu_item(DCCChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(DCCChatMenu[0], " Ignore                   ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
 	add_menu_item(DCCChatMenu[0], " Edit Ignore List ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
-	add_menu_item(DCCChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(DCCChatMenu[0], " Add to Favorites         ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
 	add_menu_item(DCCChatMenu[0], " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
 	add_menu_item(DCCChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(DCCChatMenu[0], " Disconnect               ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
 	add_menu_item(DCCChatMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(DCCChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(DCCChatMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
 
 	DCCChatMenu[1] = init_menu(13, 1, "Window", 'W');
@@ -488,7 +485,6 @@ void init_all_menus(){
 	add_menu_item(ListMenu[0], " Join                     ", "", 0, M_SELECTABLE, E_CHANNEL_JOIN, NULL);	
 	add_menu_item(ListMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ListMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(ListMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(ListMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
 
 	ListMenu[1] = init_menu(9, 1, "Window", 'W');
@@ -511,7 +507,6 @@ void init_all_menus(){
 	add_menu_item(HelpMenu[0], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
 	add_menu_item(HelpMenu[0], "                        ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(HelpMenu[0], " Close           Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(HelpMenu[0], "                        ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(HelpMenu[0], " Exit            Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
 
 	HelpMenu[1] = init_menu(9, 1, "Window", 'W');

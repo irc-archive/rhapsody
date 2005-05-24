@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2004 Adrian Gonera                                         */
+/*  Copyright (C) 2005 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -152,22 +152,22 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 
 	if (strncasecmp(command,"PING",4)==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("PING", "%s", command + 6), cmdnick, "");
-		vprint_all_attrib(CTCP_COLOR, "CTCP PING Request from %s... %s.\n", cmdnick, replystate);
+		vprint_server_attrib(server, CTCP_COLOR, "CTCP PING Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"VERSION")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("VERSION", "%s", DEFAULT_CTCPVERSION), cmdnick, "");
-		vprint_all_attrib(CTCP_COLOR, "CTCP VERSION Request from %s... %s.\n", cmdnick, replystate);
+		vprint_server_attrib(server, CTCP_COLOR, "CTCP VERSION Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"SOURCE")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("SOURCE", "%s", DEFAULT_CTCPSOURCE), cmdnick, "");
-		vprint_all_attrib(CTCP_COLOR, "CTCP SOURCE Request from %s... %s.\n", cmdnick, replystate);
+		vprint_server_attrib(server, CTCP_COLOR, "CTCP SOURCE Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"FINGER")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("FINGER", "%s", configuration.ctcpfinger), cmdnick, "");
-		vprint_all_attrib(CTCP_COLOR, "CTCP FINGER Request from %s... %s.\n", cmdnick, replystate);
+		vprint_server_attrib(server, CTCP_COLOR, "CTCP FINGER Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"USERINFO")==0){
@@ -177,7 +177,7 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 	}
 	else if (strcasecmp(command,"CLIENTINFO")==0){
 		if (ready) sendcmd_server(server, "NOTICE", create_ctcp_command("CLIENTINFO", "%s", DEFAULT_CTCPCLIENTINFO), cmdnick, "");
-		vprint_all_attrib(CTCP_COLOR, "CTCP CLIENTINFO Request from %s... %s.\n", cmdnick, replystate);
+		vprint_server_attrib(server, CTCP_COLOR, "CTCP CLIENTINFO Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 	else if (strcasecmp(command,"TIME")==0){
@@ -186,7 +186,7 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 			timestamp[strlen(timestamp) - 1] = 0;
 			sendcmd_server(server, "NOTICE", create_ctcp_command("TIME", "%s", timestamp), cmdnick, "");
 		}
-		vprint_all_attrib(CTCP_COLOR, "CTCP TIME Request from %s... %s.\n", cmdnick, replystate);
+		vprint_server_attrib(server, CTCP_COLOR, "CTCP TIME Request from %s... %s.\n", cmdnick, replystate);
 		replied = 1;
 	}
 
@@ -196,10 +196,8 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 		return(TRUE);
 	}	
 
-
 	if (strncasecmp(command,"ERROR", 5)==0){
-		vprint_all_attrib(CTCP_COLOR, "CTCP %s reported from %s... %s\n", command, cmdnick);
-		print_all(message);
+		vprint_server_attrib(server, CTCP_COLOR, "CTCP %s reported from %s... %s\n", command, cmdnick);
 		return(TRUE);
 	}
 

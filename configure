@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PROGRAMNAME="rhapsody"
-PROGRAMVER="0.24b"
+PROGRAMVER="0.25b"
 
 ###########################################################
 # Get command line parameters                             #

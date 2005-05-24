@@ -66,12 +66,21 @@ void command_parse(char *message, char *command, char *params, char *nick, char 
 
 int get_next_param(char *message, char *param){
 	char temp[1024];
-	if (sscanf(message, ":%[^\n\r]", param)==1) {
+
+	//vprint_all("Message %s\n", message);
+	if (message[0] == ':'){
+	// if (sscanf(message, ":%[^\n\r]", param) == 1) {
+		//strcpy(message, temp);
+		strcpy(param, message + 1);
 		strcpy(message, "");
 		return(0);
 	}	
-	else if (sscanf(message, "%s %[^\n\r]", param, temp)>=1) {
+	else if (sscanf(message, "%s %[^\n\r]", param, temp) == 2) {
 		strcpy(message, temp);
+		return(1);
+	}
+	else if (sscanf(message, "%s", param) == 1) {
+		strcpy(message, "");
 		return(1);
 	}
 	else {
@@ -82,11 +91,11 @@ int get_next_param(char *message, char *param){
 
 int get_next_word(char *message, char *param){
 	char temp[1024];
-	if (sscanf(message, "%s %[^\n\r]", param, temp)==2) {
+	if (sscanf(message, "%s %[^\n]", param, temp) == 2) {
 		strcpy(message, temp);
 		return(1);
 	}	
-	else if (sscanf(message, "%s", param)==1) {
+	else if (sscanf(message, "%s", param) == 1) {
 		strcpy(message, "");
 		return(1);
 	}

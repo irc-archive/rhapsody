@@ -229,3 +229,6 @@ int get_transfer_select_options(int key);
 int get_transfer_info(int key, dcc_file *file);
 
 int allow_transfer(int key, dcc_file *F);
+
+int end_last_server(int key);
+int end_server_screens(int key);
