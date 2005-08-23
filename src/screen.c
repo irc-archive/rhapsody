@@ -57,6 +57,7 @@
 
 extern screen *screenlist;
 extern screen *currentscreen;
+extern config configuration;
 
 int screenupdated;
 
@@ -223,7 +224,8 @@ int print_screen_opt(WINDOW *win, char *buffer, int linelen, int indent, int att
 					}
 					bg_set=sscanf(colorcode, "%d", &bgcolor);
 				}
-				if (fg_set > 0 && fgcolor && (options & O_NOMONOCHROME)) attr_color = COLOR_PAIR(mirc_palette(fgcolor, bgcolor));
+				if (fg_set > 0 && fgcolor && (options & O_NOMONOCHROME))
+					attr_color = COLOR_PAIR(mirc_palette(fgcolor, bgcolor));
 				else attr_color = 0;
 			}				
 			else {
@@ -233,7 +235,7 @@ int print_screen_opt(WINDOW *win, char *buffer, int linelen, int indent, int att
 				if (attr_bold) attr_current = attr_current | A_BOLD;
 				if (attr_rev) attr_current = attr_current | A_REVERSE;
 
-				strbuffer[j] = (buffer[i]&0xff);
+				strbuffer[j] = (buffer[i] & 0xff);
 				attrbuffer[j] = attr_current;
 
 				//wattrset(win, attrbuffer[j]);
@@ -550,7 +552,6 @@ server *add_server(char *servername, int port, char *nick, char *user, char *hos
 	new->update = 0;
 	new->connect_status = -1;
 	new->active = 0;
-	new->bufferoffset = 0;
 	strcpy(new->nick, nick);
 	strcpy(new->user, user);
 	strcpy(new->host, host);
@@ -719,10 +720,13 @@ int redraw_channel_screen(channel *C){
 
 void printmsg_channel(channel *C, char *nick, char *buffer){
 	char temp[MAXDATASIZE];
-
+	char *timestamp;
+	
 	if (C != NULL){
 		// Print the message. If this is the current channel refresh its window
-		sprintf(temp, "%c<%s>%c %s\n", 2, nick, 2, buffer);
+		if (configuration.channeltimestamps) timestamp = get_timestamp();
+		else timestamp = "";
+		sprintf(temp, "%s%c<%s>%c %s\n", timestamp, 2, nick, 2, buffer);
 		print_screen_opt(C->message, temp, COLS-USERWINWIDTH-3, 5, A_NORMAL, O_ALL);
 		set_channel_update_status(C, U_MAIN_REFRESH);
 	}
@@ -745,7 +749,7 @@ void print_channel_attrib(channel *C, char *buffer, int attrib){
 
 void printmymsg_channel(channel *C, char *buffer){
 	if (C != NULL){
-		printmsg_channel(C, ((server *)(C->server))->nick, buffer);
+		printmsg_channel(C, C->server->nick, buffer);
 	}
 }
 
@@ -1283,8 +1287,13 @@ void print_chat_attrib(chat *C, char *buffer, int attrib){
 
 void printmsg_chat(chat *C, char *nick, char *buffer){
 	char scratch[MAXDATASIZE];
+	char *timestamp;
+
 	if (C!=NULL){
-		sprintf(scratch, "%c<%s>%c %s\n", 2, nick, 2, buffer);
+		if (configuration.chattimestamps) timestamp = get_timestamp();
+		else timestamp = "";
+
+		sprintf(scratch, "%s%c<%s>%c %s\n", timestamp, 2, nick, 2, buffer);
 		print_screen_opt(C->message, scratch, COLS-2, 5, A_NORMAL, O_ALL);
 		set_chat_update_status(C, U_MAIN_REFRESH);
 	}
@@ -1292,7 +1301,7 @@ void printmsg_chat(chat *C, char *nick, char *buffer){
 
 void printmymsg_chat(chat *C, char *buffer){
 	if (C!=NULL){
-		printmsg_chat(C, ((server *)(C->server))->nick, buffer);
+		printmsg_chat(C, C->server->nick, buffer);
 	}
 }
 
@@ -1421,8 +1430,12 @@ int redraw_dccchat_screen(dcc_chat *D){
 
 void printmsg_dcc_chat(dcc_chat *C, char *nick, char *buffer){
 	char scratch[MAXDATASIZE];					
+	char *timestamp;
 	if (C!=NULL){
-		sprintf(scratch, "%c<%s>%c %s\n", 2, nick, 2, buffer);
+		if (configuration.dcctimestamps) timestamp = get_timestamp();
+		else timestamp = "";
+		
+		sprintf(scratch, "%s%c<%s>%c %s\n", timestamp, 2, nick, 2, buffer);
 		print_screen_opt(C->message, scratch, COLS-2, 5, A_NORMAL, O_ALL);
 		set_dccchat_update_status(C, U_MAIN_REFRESH);
 	}
@@ -1593,8 +1606,8 @@ list *add_list(server *server){
 
 void end_list(list *L){
 	if (L == NULL) return;
+	delete_list_members(L);
 	delete_list_screen(L);
-	/*** delete all list members ***/
 	free(L);
 }
 
@@ -1605,6 +1618,17 @@ int redraw_list_screen(list *L){
 	#endif
 	touchwin(L->message);
 	return(0);
+}
+
+void delete_list_members(list *L){
+	list_channel *current, *next;
+	current = L->alphalist;
+
+	while(current != NULL){
+		next = current->alphanext;
+		free(current);
+		current = next;
+	}
 }
 
 void refresh_channel_list(list *L){
@@ -2342,7 +2366,8 @@ int process_inputline_events(inputwin *I, int event){
 		return(E_NONE);
 	}
 	
-	else if (event == 2 || event == 31 || event == 15 || event == 3 || (event >= 0x20 && event < 0x7e)){
+	else if (event == 2 || event == 31 || event == 15 
+		|| event == 3 || (event >= 0x20 && event <= 0xff)){
                 add_input_buffer(I, event);
         	return(E_NONE);
 	}
@@ -2411,7 +2436,7 @@ int print_inputline(inputwin *inputline){
 	int i, j;
 	int bgcolor, fgcolor, fg_set, bg_set;
 	char colorcode[8];
-	char *buffer;
+	unsigned char *buffer;
 	WINDOW *inputwin;
 
 	int attr_bold;
@@ -2627,5 +2652,14 @@ void unset_statusline_update_status(statuswin *S, int update){
 int statusline_update_status(statuswin *S){
 	if (S != NULL) return (S->update);
 	return(0);	
+}
+
+char *get_timestamp(){
+	static char timestr[MAXDATASIZE];
+	time_t currTime;
+
+	currTime = time(NULL);
+	strftime(timestr, MAXDATASIZE, configuration.timestampformat, localtime(&currTime));
+	return(timestr);
 }
 

@@ -66,32 +66,6 @@
 #include "comm.h"
 #include "misc.h"
 
-menu *ServerMenu[6];
-menu *TransferMenu[4];
-menu *ListMenu[4];
-menu *ChannelMenu[4];
-menu *ChatMenu[4];
-menu *DCCChatMenu[4];
-menu *HelpMenu[2];
-menu *ChannelUserMenu;
-
-menu *currentmenu = NULL;
-menu *windowmenu = NULL;
-menu *UserMenu = NULL;
-menu *UserListMenu = NULL;
-menu *CtcpMenu = NULL;
-menu *ControlMenu = NULL;
-menu *DCCMenu = NULL;
-
-menubar *servermenus;
-menubar *channelmenus;
-menubar *chatmenus;
-menubar *dccchatmenus;
-menubar *transfermenus;
-menubar *listmenus;
-menubar *helpmenus;
-menubar *currentmenusline;
-
 int currentmenunum;
 int menuchanged;
 
@@ -105,8 +79,8 @@ int process_transfer_events(int key);
 int process_list_events(int key);
 int process_help_events(int key);
 
-int connect_to_server (server *S);
-int disconnect_from_server (server *S);
+int connect_to_server(server *S);
+int disconnect_from_server(server *S);
 
 int inst_alarm_handler();
 int inst_resize_handler();
@@ -129,7 +103,8 @@ static char newpassword[MAXDATASIZE];
 static dcc_file *newdccfile = NULL;
 static server *gserver = NULL;
 
-menu *build_window_menu(int startx, int starty);
+int build_window_menu(menu *menuptr);
+
 int sigkey;
 
 int main(int argc, char *argv[]){
@@ -194,13 +169,6 @@ int main(int argc, char *argv[]){
 	statusline = create_status_screen();
 
 	init_all_menus();
-	servermenus = init_menubar(6, 3, 4, ServerMenu);
-	channelmenus = init_menubar(3, 3, 4, ChannelMenu);
-	chatmenus = init_menubar(3, 3, 4, ChatMenu);
-	dccchatmenus = init_menubar(3, 3, 4, DCCChatMenu);
-	listmenus = init_menubar(3, 3, 4, ListMenu);
-	transfermenus = init_menubar(3, 3, 4, TransferMenu);
-	helpmenus = init_menubar(2, 3, 4, HelpMenu);
 	currentmenusline = servermenus;
 
 	/* create a transfer screen and hide it by default */
@@ -234,7 +202,7 @@ int main(int argc, char *argv[]){
 	key = 0;
 	sigkey = 0;
 
-	windowmenu = build_window_menu(22,1);
+	// windowmenu = build_window_menu(22,1);
 	set_input_buffer (inputline, "");
 
 	if (configstat != 0){
@@ -399,24 +367,27 @@ int main(int argc, char *argv[]){
 		serr = select(maxsfd+1, &readfds, &writefds, NULL, &timeout);
 		
 		/* read from server and dcc sockets if ready */
-		current = screenlist;
-		while(current != NULL){
+		current=screenlist;
+		while(current!=NULL){
 			// if this is an active (non-disconnected) server and its socket is ready	
-			if (current->type == SERVER){
-				if (serr > 0 && ((server *)(current->info))->active && 
-					FD_ISSET(((server *)(current->info))->serverfd, &readfds)){		
-					serr = recv_line(((server *)(current->info))->serverfd, ((server *)(current->info))->buffer, 
-						&(((server *)(current->info))->bufferoffset), MAXDATASIZE - 1);
+			if (current->type == SERVER){				
+				if (serr > 0 && ((server *)(current->info))->active &&
+				FD_ISSET(((server*)(current->info))->serverfd, &readfds)) {
+					serr = recv_line(((server *)(current->info))->serverfd, 
+						((server *)(current->info))->buffer,
+						&(((server *)(current->info))->bufferoffset), 
+						MAXDATASIZE - 1);
 					if (serr == -1){
 						// got disconnected, set server connect flags
 						((server *)(current->info))->active = 0;
 						((server *)(current->info))->connect_status = -1;
 						set_statusline_update_status(statusline, U_ALL_REFRESH);
-						vprint_server_attrib(((server *)(current->info)), ERROR_COLOR, 
-							"Disconnected from %s\n", ((server *)(current->info))->server);
+						vprint_server_attrib((server *)(current->info), 
+							ERROR_COLOR, "Disconnected from %s\n", ((server *)(current->info))->server);
 					}
 					if (serr == 0);					
-					else parse_message(((server *)(current->info)), ((server *)(current->info))->buffer);
+					else parse_message((server *)(current->info), 
+						((server *)(current->info))->buffer);
 				}
 			}
 
@@ -461,6 +432,7 @@ int main(int argc, char *argv[]){
 		while(currentdcc != NULL){
 			nextdcc = currentdcc->next;
 
+
 			/* if this is a send in progress, check to see if ack is waiting */
 			if (currentdcc != NULL){
 				if (serr > 0 && FD_ISSET(currentdcc->dccfd, &readfds)) {
@@ -469,6 +441,7 @@ int main(int argc, char *argv[]){
 					}
 				}
 			}
+
 
 			/* incoming transfer finished, clean up and close socket */
 			if (currentdcc->type == DCC_RECEIVE && currentdcc->byte >= currentdcc->size){
@@ -571,7 +544,6 @@ int process_server_events(int key){
 	currentserver = (server *)currentscreen->info;
 	if (currentserver == NULL) return(E_NONE);
 
-	// create the window selection menu
 	// if forms are showing, pass the key event to forms
 	if (currentform){
 		formkey = key;
@@ -579,9 +551,6 @@ int process_server_events(int key){
 	}
 	else formkey = 0;
 
-	move_menu(windowmenu, 41, 1);
-	ServerMenu[4] = windowmenu;	
-	
 	key = process_menubar_events(menus, key);
 	key = process_screen_events(currentscreen, key);
 	key = process_inputline_events(inputline, key);
@@ -593,8 +562,6 @@ int process_server_events(int key){
 
 		strcpy(inputbuffer, inputline->inputbuffer);
 		add_inputline_entry(inputline, inputbuffer);
-		//inputline->head = add_inputline_entry(inputline->head, inputbuffer);
-		//inputline->current = inputline->head;
 		set_input_buffer (inputline, "");
 			
 		i = parse_input(currentserver, inputbuffer);
@@ -732,10 +699,6 @@ int process_channel_events(int key){
 	currentserver = currentchannel->server;
 	menus = channelmenus;
 
-	// create the window selection menu
-	move_menu(windowmenu, 12, 1);
-	ChannelMenu[1] = windowmenu;	
-
 	//if forms are showing, pass the key event to forms
 	if (currentform){
 		formkey = key;
@@ -752,8 +715,8 @@ int process_channel_events(int key){
 	selectedmenu = selected_menubar_item_id(menus);
 	if (selectedmenu != 0) key = selectedmenu;
 	
-	// ctrl-u for user selection
-	else if (key == 0x15){
+	// ctrl-u or menu user select event for user selection
+	if (key == E_USER_SELECT){
 		currentchannel->selecting = currentchannel->selecting ^ 1;			
 		set_channel_update_status(currentchannel, U_ALL_REFRESH);
 	}
@@ -1110,13 +1073,11 @@ int process_channel_events(int key){
 		ustartx = COLS - MAXNICKDISPLEN - UserMenu->width - 4;
 		ustarty = user_win_offset(currentchannel);
 		if (ustarty > LINES - 4 - UserMenu->height) ustarty = LINES - 4 - UserMenu->height;
-		move_menu(UserMenu, ustartx, ustarty);
-
-		move_menu(ControlMenu, ustartx - ControlMenu->width - 1, ustarty + 2);
-		move_menu(CtcpMenu, ustartx - CtcpMenu->width - 1, ustarty + 3);
-		move_menu(DCCMenu, ustartx - DCCMenu->width - 1, ustarty + 4);
-		move_menu(UserListMenu, ustartx - UserListMenu->width - 1, ustarty + 5);
-
+		set_menu_position(UserMenu, ustartx, ustarty);
+		set_menu_position(ControlMenu, ustartx - ControlMenu->width - 1, ustarty + 2);
+		set_menu_position(CtcpMenu, ustartx - CtcpMenu->width - 1, ustarty + 3);
+		set_menu_position(DCCMenu, ustartx - DCCMenu->width - 1, ustarty + 4);
+		set_menu_position(UserListMenu, ustartx - UserListMenu->width - 1, ustarty + 5);
 		print_menu(UserMenu);
 	}
 
@@ -1154,10 +1115,7 @@ int process_chat_events(int key){
 	server *currentserver;
 	int formkey, formcode;
 
-	// create the window selection menu
 	menus = chatmenus;
-	move_menu(windowmenu, 9, 1);
-	ChatMenu[1] = windowmenu;	
 	currentchat = currentscreen->info;
 	currentserver = currentchat->server;
 
@@ -1289,10 +1247,6 @@ int process_dccchat_events(int key){
 	menus = dccchatmenus;
 	currentchat = currentscreen->info;
 
-	// create the window selection menu
-	move_menu(windowmenu, 13, 1);
-	DCCChatMenu[1] = windowmenu;	
-
 	//if forms are showing, pass the key event to forms
 	if (currentform){
 		formkey = key;
@@ -1418,10 +1372,6 @@ int process_list_events(int key){
 
 	menus = listmenus;
 	currentlist = currentscreen->info;
-
-	// create the window selection menu
-	move_menu(windowmenu, 9, 1);
-	ListMenu[1] = windowmenu;	
 
 	/* if forms are showing, pass the key event to forms */
 	if (currentform){
@@ -1619,8 +1569,8 @@ int process_main_events(int key){
 	menus = transfermenus;
 
 	// create the window selection menu
-	move_menu(windowmenu, 13, 1);
-	TransferMenu[1] = windowmenu;
+	// move_menu(windowmenu, 13, 1);
+	// TransferMenu[1] = windowmenu;
 
 
 	if (selected == NULL) selected = screenlist;
@@ -1880,10 +1830,6 @@ int process_transfer_events(int key){
 	curs_set(0);
 	menus = transfermenus;
 
-	// create the window selection menu
-	move_menu(windowmenu, 13, 1);
-	TransferMenu[1] = windowmenu;
-
 	T = ((transfer *)(currentscreen->info));
 	if (T->selectedfile == NULL || !dcc_file_exists(T, T->selectedfile)){
 		T->selectedfile = T->dcclist;
@@ -1985,7 +1931,7 @@ int process_transfer_events(int key){
 		werase(T->message);
 	}
 
-	if (currentmenusline->current < 0){
+	if (currentmenusline->selected == NULL){
 		if (now > lastupdate ||	transfer_update_status(T)){	
 			displayed = 0;
 			lastupdate = now;
@@ -2012,7 +1958,7 @@ int process_transfer_events(int key){
 					scratch[0] = 0;
 					if (current->type == DCC_RECEIVE) sprintf(scratch, "RECEIVING: %s", current->filename);
 					else if (current->type == DCC_SEND) sprintf(scratch, "SENDING: %s", current->filename);
-					sprintf(rscratch, "%ld/%ld, %.1f KB/s\n", current->byte, current->size, kbps); 
+					sprintf(rscratch, "%lu/%lu, %.1f KB/s\n", current->byte, current->size, kbps); 
 
 					slen = strlen(scratch);
 					dlen = strlen(rscratch);
@@ -2107,10 +2053,6 @@ int process_help_events(int key){
 	
 	menus = helpmenus;
 	currenthelp = currentscreen->info;
-
-	// create the window selection menu
-	move_menu(windowmenu, 9, 1);
-	HelpMenu[1] = windowmenu;	
 
 	/* if forms are showing, pass the key event to forms */
 	if (currentform){
@@ -2464,7 +2406,8 @@ int process_common_form_events(screen *inscreen, int key){
 		formcode = get_new_chat_info(formkey, newuser);
 		if (formcode == E_OK){
 			currentform = 0;
-			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not chat with yourself.\n");
+			if (strlen(newuser) == 0){}
+			else if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to chat.\n");
 			else {
 				new_chat = chat_by_name(newuser, currentserver);
@@ -2490,7 +2433,8 @@ int process_common_form_events(screen *inscreen, int key){
 		formcode = get_favorite_user_chat_info(formkey, newuser);
 		if (formcode == E_OK){
 			currentform = 0;
-			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not chat with yourself.\n");
+			if (strlen(newuser) == 0){}
+			else if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to chat.\n");
 			else {
 				new_chat = chat_by_name(newuser, currentserver);
@@ -2515,7 +2459,8 @@ int process_common_form_events(screen *inscreen, int key){
 		formcode = get_new_dccchat_info(formkey, newuser);
 		if (formcode == E_OK){
 			currentform = 0;
-			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not DCC chat with yourself.\n");
+			if (strlen(newuser) == 0){}
+			else if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not DCC chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to DCC chat.\n");
 			else {
 				new_dccchat = dcc_chat_by_name(newuser, currentserver); 
@@ -2545,7 +2490,8 @@ int process_common_form_events(screen *inscreen, int key){
 		formcode = get_favorite_user_dccchat_info(formkey, newuser);
 		if (formcode == E_OK){
 			currentform = 0;
-			if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not DCC chat with yourself.\n");
+			if (strlen(newuser) == 0){}
+			else if (strcmp(newuser, currentserver->nick) == 0) print_all("You can not DCC chat with yourself.\n");
 			else if (!currentserver->active) print_all("Must be connected to a server to DCC chat.\n");
 			else {
 				new_dccchat = dcc_chat_by_name(newuser, currentserver); 
@@ -2574,7 +2520,8 @@ int process_common_form_events(screen *inscreen, int key){
 	else if (currentform == CF_NEW_DCC_SEND){
 		formcode = get_new_dccsend_info(formkey, newuser);
 		if (formcode == E_OK){
-			if (strcmp(newuser, currentserver->nick) == 0){
+			if (strlen(newuser) == 0){}
+			else if (strcmp(newuser, currentserver->nick) == 0){
 				print_all("You can not DCC send to yourself.\n");
 				currentform = 0;
 			}
@@ -2597,7 +2544,8 @@ int process_common_form_events(screen *inscreen, int key){
 	else if (currentform == CF_FAVORITE_DCC_SEND){
 		formcode = get_favorite_user_dccsend_info(formkey, newuser);
 		if (formcode == E_OK){
-			if (strcmp(newuser, currentserver->nick) == 0){
+			if (strlen(newuser) == 0){}
+			else if (strcmp(newuser, currentserver->nick) == 0){
 				print_all("You can not DCC send to yourself.\n");
 				currentform = 0;
 			}
@@ -2817,15 +2765,15 @@ int process_common_form_events(screen *inscreen, int key){
 	return(key);
 }
 
-menu *build_window_menu(int startx, int starty){
-	menu *menu;
+int build_window_menu(menu *menuptr){
 	menuitem *item;
 	screen *current;
 	char menutext[256];
 	char menudesc[256];
 	int idnum;
 
-	menu = init_menu(startx, starty, "Window", 'W');
+	delete_menu_items(menuptr);
+
 	current = screenlist;
 	idnum = 0xF000;
 
@@ -2873,22 +2821,23 @@ menu *build_window_menu(int startx, int starty){
 			sprintf(menudesc, " ");
                 }
 
-		item = add_menu_item(menu, menutext, menudesc, 0, M_SELECTABLE, idnum, NULL);
-                if (currentscreen==current){
-                	menu->selected = item;  
-                }
+		item = add_menu_item(menuptr, menutext, menudesc, 0, M_SELECTABLE, idnum, NULL);
+                //if (currentscreen == current){
+                //	menuptr->selected = item;  
+                //}
 		current = current->next;
 		idnum++;
 	}
-	add_menu_item(menu, "", "", 0, M_DIVIDER, 0, NULL);
-	add_menu_item(menu, " Next Window ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(menu, " Previous Window ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menu_item(menuptr, "", "", 0, M_DIVIDER, 0, NULL);
+	add_menu_item(menuptr, " Next Window ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(menuptr, " Previous Window ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
 
-	return (menu);
+	return (1);
 }
 
 int draw_menuline_screen(menuwin *menuline, menubar *menubar){
 	screen *current;
+	menu *windowmenu;
 	int screennum;
 	char repchar;
 	int repattr;
@@ -2978,6 +2927,7 @@ int draw_menuline_screen(menuwin *menuline, menubar *menubar){
 			if (currentscreen == current){
 				selectedchar = numchars;
 				screenattribs[numchars++] = A_BOLD;
+
 			}
 			else screenattribs[numchars++] = repattr | A_REVERSE;
 		}		
@@ -2996,9 +2946,22 @@ int draw_menuline_screen(menuwin *menuline, menubar *menubar){
 		mvwaddch(menuline->menuline, 0, COLS - numchars - 1 + currchar, screenchars[currchar]);
 	}
 
-	/* make the window menu when a screen changes */
+	/* rebuild all window menus when a screen changes */
 	if (screenupdated){
-		windowmenu = build_window_menu(22,1);
+		windowmenu = get_menubar_menu(servermenus, MENU_WINDOWLIST);
+		build_window_menu(windowmenu);
+		windowmenu = get_menubar_menu(channelmenus, MENU_WINDOWLIST);
+		build_window_menu(windowmenu);
+		windowmenu = get_menubar_menu(chatmenus, MENU_WINDOWLIST);
+		build_window_menu(windowmenu);
+		windowmenu = get_menubar_menu(dccchatmenus, MENU_WINDOWLIST);
+		build_window_menu(windowmenu);
+		windowmenu = get_menubar_menu(transfermenus, MENU_WINDOWLIST);
+		build_window_menu(windowmenu);
+		windowmenu = get_menubar_menu(helpmenus, MENU_WINDOWLIST);
+		build_window_menu(windowmenu);
+		windowmenu = get_menubar_menu(listmenus, MENU_WINDOWLIST);
+		build_window_menu(windowmenu);
 		screenupdated = 0;
 	}
 	wrefresh(menuline->menuline);

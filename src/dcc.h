@@ -1,4 +1,5 @@
-dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, unsigned long hostip, unsigned int port, int size);
+dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, 
+	unsigned long hostip, unsigned int port, unsigned long size);
 dcc_file *add_outgoing_dcc_file(transfer *transfer, char *nick, char *filename);
 
 int start_incoming_dcc_chat(dcc_chat *D);

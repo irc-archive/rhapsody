@@ -1492,7 +1492,7 @@ int get_transfer_info(int key, dcc_file *F){
 		rm = (rtime % 3600) / 60;
 		rs = (rtime % 60);
 
-		sprintf(scratch, "Nick       : %s\nProgress   : %ld/%ld\nRemote IP  : %s\nRemote Port: %u\nElapsed    : %02d:%02d:%02d\nRemaining  : %02d:%02d:%02d\n", 
+		sprintf(scratch, "Nick       : %s\nProgress   : %lu/%lu\nRemote IP  : %s\nRemote Port: %u\nElapsed    : %02d:%02d:%02d\nRemaining  : %02d:%02d:%02d\n", 
 			F->nick, F->byte, F->size, inet_ntoa(addr), F->port, eh, em, es, rh, rm, rs); 
 
 		text = add_Ftextarea("info", 2, 3, 36, 12, 0, -1, scratch);
@@ -2121,7 +2121,7 @@ int get_client_options(int key){
 	Fcheckbox *checkbox;
 
 	if (mainform == NULL){
-		mainform = create_client_options_form(configuration.connecttimeout, configuration.autosave);
+		mainform = create_client_options_form();
 	}
 
 	event = process_form_events(mainform, key);
@@ -2135,6 +2135,24 @@ int get_client_options(int key){
 		comp = form_component_by_id(mainform, FORM_ID_CONNECT_TIMEOUT);
 		textline = comp->component;
  		configuration.connecttimeout = atoi(Ftextline_buffer_contents(textline));
+
+		comp = form_component_by_id(mainform, FORM_ID_TIMESTAMP_FORMAT);
+		textline = comp->component;
+ 		strcpy(configuration.timestampformat, Ftextline_buffer_contents(textline));
+
+
+		comp = form_component_by_id(mainform, FORM_ID_TIMESTAMP_CHANNEL);
+		checkbox = comp->component;
+ 		configuration.channeltimestamps = Fcheckbox_value(checkbox);
+
+		comp = form_component_by_id(mainform, FORM_ID_TIMESTAMP_CHAT);
+		checkbox = comp->component;
+ 		configuration.chattimestamps = Fcheckbox_value(checkbox);
+
+		comp = form_component_by_id(mainform, FORM_ID_TIMESTAMP_DCC);
+		checkbox = comp->component;
+ 		configuration.dcctimestamps = Fcheckbox_value(checkbox);
+
 
 		comp = form_component_by_id(mainform, FORM_ID_AUTOSAVE);
 		checkbox = comp->component;
@@ -2150,28 +2168,46 @@ int get_client_options(int key){
 }
 
 
-form *create_client_options_form(int timeout, int autosave){
+form *create_client_options_form(){
 	void *comp;
 	form *form;
 	Fcheckbox *box;
 	int i;
 	char temp[256];
 
-	form = add_form("Client Options", 0x000, -1, -1, 40, 9, FORM_COLOR_MAIN, STYLE_TITLE);
+	form = add_form("Client Options", 0x000, -1, -1, 40, 15, FORM_COLOR_MAIN, STYLE_TITLE);
 
-	sprintf(temp, "%d", timeout);        
+	sprintf(temp, "%d", configuration.connecttimeout);        
 	comp = (void *) add_Ftextline("Server Connect Timeout", 2, 4, 35, 4, 2, 3, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
 	add_form_component(form, comp, FORM_ID_CONNECT_TIMEOUT, F_TEXTLINE);
 	set_Ftextline_buffer(comp, temp);
 
-	comp = (void *) add_Fcheckbox("Autosave Configuration", 36, 5, 2, 5, FORM_COLOR_CHECKBOX, 0);
-	add_form_component(form, comp, FORM_ID_AUTOSAVE, F_CHECKBOX);
-	if (autosave) set_Fcheckbox_value(comp, 1);
+	comp = (void *) add_Ftextline("Timestamp Format", 2, 6, 25, 6, 40, 13, FORM_COLOR_TEXTLINE, 0, IN_ALL);
+	add_form_component(form, comp, FORM_ID_TIMESTAMP_FORMAT, F_TEXTLINE);
+	set_Ftextline_buffer(comp, configuration.timestampformat);
 
-	comp = (void *) add_Fbutton("OK", 23, 7, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fcheckbox("Timestamps in Channels", 36, 7, 2, 7, FORM_COLOR_CHECKBOX, 0);
+	add_form_component(form, comp, FORM_ID_TIMESTAMP_CHANNEL, F_CHECKBOX);
+	if (configuration.channeltimestamps) set_Fcheckbox_value(comp, 1);
+
+	comp = (void *) add_Fcheckbox("Timestamps in Chats", 36, 8, 2, 8, FORM_COLOR_CHECKBOX, 0);
+	add_form_component(form, comp, FORM_ID_TIMESTAMP_CHAT, F_CHECKBOX);
+	if (configuration.chattimestamps) set_Fcheckbox_value(comp, 1);
+
+	comp = (void *) add_Fcheckbox("Timestamps in DCCs", 36, 9, 2, 9, FORM_COLOR_CHECKBOX, 0);
+	add_form_component(form, comp, FORM_ID_TIMESTAMP_DCC, F_CHECKBOX);
+	if (configuration.dcctimestamps) set_Fcheckbox_value(comp, 1);
+
+
+	comp = (void *) add_Fcheckbox("Autosave Configuration", 36, 11, 2, 11, FORM_COLOR_CHECKBOX, 0);
+	add_form_component(form, comp, FORM_ID_AUTOSAVE, F_CHECKBOX);
+	if (configuration.autosave) set_Fcheckbox_value(comp, 1);
+
+	comp = (void *) add_Fbutton("OK", 23, 13, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
-	comp = (void *) add_Fbutton("Cancel", 30, 7, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	comp = (void *) add_Fbutton("Cancel", 30, 13, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
+
          
 	return(form);
 }
@@ -2552,7 +2588,7 @@ form *create_directory_listing_form(char *path){
 	//vprint_all("Reading directory %s.\n", path);
 
 	/* open the current directory */ 
-	dirp=opendir(path);
+	dirp = opendir(path);
 
 	/* if cannot read directory, provide a way to step out of it */
 	if (dirp == NULL){
@@ -2561,12 +2597,15 @@ form *create_directory_listing_form(char *path){
 		add_Flistline(comp, 0, listline, NULL, FORMLIST_LAST);
 	}
 	else{
-		while((direntp=readdir(dirp)) != NULL){
+		while((direntp = readdir(dirp)) != NULL){
 			sprintf(pathbuffer, "%s/%s", path, direntp->d_name);
 			if (stat(pathbuffer, &filestat) == -1){
-				vprint_all("Error %d, %s getting stats on file %s\n",
-					errno, strerror(errno), direntp->d_name);
-				continue;
+				/* large file support still complains about filesize */
+				if (errno != EOVERFLOW){
+					vprint_all("Error %d, %s getting stats on file %s\n",
+						errno, strerror(errno), direntp->d_name);
+					continue;
+				}
 			}
 
 			/* if entry is a file */ 

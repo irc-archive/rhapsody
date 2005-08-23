@@ -60,8 +60,6 @@ int server_update_status(server *S);
 void set_server_update_status(server *S, int update);
 void unset_server_update_status(server *S, int update);
 
-
-
 /* channel ************************************************************************************************/
 
 int create_channel_screen(channel *C);
@@ -169,6 +167,7 @@ void unset_transfer_update_status(transfer *S, int update);
 int create_list_screen(list *L);        
 list *add_list(server *server);
 void end_list(list *L);
+void delete_list_members(list *L);
 void refresh_chat_screen(chat *C);
 
 int redraw_list_screen(list *L);
@@ -215,6 +214,7 @@ int print_help_file(help *H, char *filename);
 
 /* input and status **************************************************************************************/
 
+char *get_timestamp();
 
 inputwin *create_input_screen();
 void redraw_input_screen(inputwin *I);

@@ -214,9 +214,9 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 			struct in_addr hostaddr;
 			
 			unsigned short port;
-			unsigned int size;
+			unsigned long size;
 									
-			if (sscanf(dccinfo, "%s %lu %hd %d", filename, &hostip, &port, &size) != 4){
+			if (sscanf(dccinfo, "%s %lu %hd %lu", filename, &hostip, &port, &size) != 4){
 				vprint_all_attrib(DCC_COLOR, "Unknown DCC SEND request format: %s\n", commandstring);
 				return(FALSE);
 			}

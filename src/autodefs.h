@@ -1,3 +1,3 @@
 #define INSTALL_PATH "/home/adrian/rhapsody"
 #define PROGRAM_NAME "rhapsody"
-#define PROGRAM_VERSION "0.25b"
+#define PROGRAM_VERSION "0.26b"

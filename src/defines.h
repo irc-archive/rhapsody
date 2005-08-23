@@ -30,6 +30,7 @@
 #define DEFAULT_CTCPVERSION CODE_ID
 #define DEFAULT_CTCPCLIENTINFO "The following CTCP commands are supported: CLIENTINFO VERSION FINGER USERINFO SOURCE TIME ERROR PING DCC"
 #define DEFAULT_CTCPSOURCE "Source is available at http://rhapsody.sourceforge.net"
+#define DEFAULT_TIMESTAMP "[%H:%M] "
 
 #define D_SOCKET 0x01
 #define D_SOCKET_BUFFER 0x02

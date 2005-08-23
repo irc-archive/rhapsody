@@ -9,6 +9,7 @@
 #define IN_CONTROL 0x0080
 #define IN_BLANK 0x0100
 #define IN_PRINTABLE 0x0200
+#define IN_ALL 0xffff
 
 #define F_BLACK 0
 #define F_WHITE 1

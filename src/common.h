@@ -83,12 +83,16 @@
 #define MAXSERVERLEN MAXHOSTLEN
 #define MAXCHANNELLEN 64
 #define MAXPASSLEN 256
+#define MAXTIMELEN 64
 #define MAXSCREENNAMES 64
 #define MEMALLOC_ERR 2
 
 #define LIST_SORT_USERS 1
 #define LIST_SORT_CHANNEL 2
 #define LIST_SORT_DESCRIPTION 3
+
+#define MENU_NORMAL 0
+#define MENU_WINDOWLIST 1
 
 typedef struct screen_list_entry screen;
 typedef struct server_info server;
@@ -131,6 +135,9 @@ struct server_info{
 	int active;
 	char server[MAXHOSTLEN];
 	int port;
+	char buffer[MAXDATASIZE * 2];
+        int bufferoffset;
+
 	char nick[MAXNICKLEN];
 	char lastnick[MAXNICKLEN];
 	char user[MAXNICKLEN];
@@ -139,8 +146,6 @@ struct server_info{
 	char name[MAXDESCLEN];
 	char password[MAXPASSLEN];
 	int serverfd;
-	char buffer[MAXDATASIZE * 2];
-	int bufferoffset;
 	int update;
 	int connect_status;
 	int nickinuse;
@@ -210,8 +215,9 @@ struct dcc_file_info{
 	unsigned int port;
 	unsigned long localip;
 	unsigned int localport;	
-	char nick[64];
+	char nick[MAXNICKLEN];
 	int dccfd;
+	int filefd;
 	int serverstatus;
 	time_t starttime;
 	time_t last_activity_at;
@@ -220,7 +226,7 @@ struct dcc_file_info{
 	transfer *transfer;
 	dcc_file *next;
 	dcc_file *prev;
-	int direction;
+	//int direction;
 	int allowed;
 };
 
@@ -331,7 +337,8 @@ struct config_data{
 	char dcchostname[MAXHOSTLEN];
 	char ctcpfinger[MAXDESCLEN];
 	char ctcpuserinfo[MAXDESCLEN];
-	int dccstartport;
+	char timestampformat[MAXTIMELEN];
+	int dccstartport; 
 	int dccendport;
 	int dccblocksize;
 	int dccaccept;
@@ -349,7 +356,7 @@ struct config_data{
         config_user *lastuserfavorite;           
         config_user *userignored;
         config_user *lastuserignored;
-	int changed;
+	bool changed;
 
 	/* application color definitions */
 	int menu_color_bg;
@@ -374,6 +381,11 @@ struct config_data{
 	int kick_color;
 	int mode_color;
 	int invite_color;
+
+	/* misc options */
+	bool channeltimestamps;
+	bool chattimestamps;
+	bool dcctimestamps;
 };
 
 inputline_entry *inputline_head;

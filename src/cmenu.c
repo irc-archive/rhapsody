@@ -42,41 +42,59 @@
 #include "cevents.h"
 #include "cmenu.h"
 
-extern menu *ServerMenu[6];
-extern menu *ChannelMenu[4];
-extern menu *TransferMenu[4];
-extern menu *ListMenu[4];
-extern menu *ChatMenu[4];
-extern menu *DCCChatMenu[4];
-extern menu *HelpMenu[2];
-extern menu *UserMenu;
-extern menu *UserListMenu;
-extern menu *CtcpMenu;
-extern menu *DCCMenu;
-extern menu *ControlMenu;
+menubar *servermenus;
+menubar *channelmenus;
+menubar *chatmenus;
+menubar *dccchatmenus;
+menubar *transfermenus;
+menubar *listmenus;
+menubar *helpmenus;
+menubar *currentmenusline;
 
-void move_menu(menu *menuptr, int startx, int starty){
-	if (menuptr != NULL){
-		menuptr->startx = startx;
-		menuptr->starty = starty;
-		if (menuptr->window != NULL) mvwin(menuptr->window, starty, startx);
+menu *UserMenu;
+menu *UserListMenu;
+menu *CtcpMenu;
+menu *DCCMenu;
+menu *ControlMenu;
+menu *WindowMenu;
+
+menubar *init_menubar(int textstart, int textspacing, int id){
+	menubar *menubarptr;
+
+	menubarptr = malloc(sizeof(menubar));
+	
+	if (menubarptr != NULL){
+		menubarptr->entries = 0;
+		menubarptr->textstart = textstart;
+		menubarptr->textspace = textspacing;
+		menubarptr->changed = 1;
+		menubarptr->selected = NULL;
+		menubarptr->menuhead = NULL;
+		menubarptr->menutail = NULL;
 	}
+	else {
+		plog("Couldn't allocate menu memory in init_menubar\n");
+		exit (-1);
+	}	
+	return(menubarptr);
 }
 
-menu *init_menu(int startx, int starty, char *name, int key){
+menu *init_menu(int startx, int starty, char *name, int key, int id){
 	menu *menuptr;
 
 	menuptr = malloc(sizeof(menu));
 	if (menuptr != NULL){
+		strncpy(menuptr->name, name, MENUNAMELEN);
 		menuptr->startx = startx;
 		menuptr->starty = starty;
-		menuptr->item = NULL;
+		menuptr->itemhead = NULL;
+		menuptr->itemtail = NULL;
 		menuptr->selected = NULL;
 		menuptr->chosen = NULL;
 		menuptr->width = 2;
 		menuptr->height = 2;
 		menuptr->entries = 0;
-		strncpy(menuptr->name, name, MENUNAMELEN);
+		menuptr->id = id;
 		menuptr->key = key;
 		menuptr->window = NULL;
 	}
@@ -87,38 +105,98 @@ menu *init_menu(int startx, int starty, char *name, int key){
 	return(menuptr);
 }
 
-menubar *init_menubar(int entries, int textstart, int textspace, menu **menu){
-	menubar *menubarptr;
 
-	menubarptr = malloc(sizeof(menubar));
-	if (menubarptr != NULL){
-		menubarptr->entries = entries;
-		menubarptr->textstart = textstart;
-		menubarptr->textspace = textspace;
-		menubarptr->changed = 1;
-		menubarptr->current = -1;
-		menubarptr->menu = menu;
-	}
-	else {
-		plog("Couldn't allocate menu memory in init_menubar\n");
-		exit (-1);
-	}	
-	return(menubarptr);
-}
-
-int delete_menu(menu *menu){
+int delete_menu(menu *menuptr){
 	menuitem *current;
 
-	if (menu != NULL){
-		current = menu->item;
+	if (menuptr != NULL){
+		delete_menu_items(menuptr);
+		free(menuptr);
+		return(1);
+	}
+
+	/* fix bar linked list */ 
+	return(0);
+}
+
+int delete_menu_items(menu *menuptr){
+	menuitem *current, *next;
+
+	if (menuptr != NULL){
+		current = menuptr->itemhead;
 		while (current != NULL){
 			// free all space dedicated to items
-			current = current->next;
+			next = current->next;
 			free(current);
+			menuptr->entries--;
+			menuptr->height--;			
+			current = next;
 		}
-		free(menu);
+		menuptr->itemhead = NULL;
+		menuptr->itemtail = NULL;
+		menuptr->selected = NULL;
+		menuptr->chosen = NULL;
+		
+		/* remove the menu window */
+		delwin(menuptr->window);
+		menuptr->window = NULL;		
+		return(1);
+	}
+	return(0);
+}
+
+int add_menubar_menu(menubar *menubarptr, menu *menuptr, int option){
+	menu *current, *last, *new;
+
+	if (menubarptr != NULL && menuptr != NULL){
+		menuptr->bar = menubarptr;
+
+		if (option & M_ADD_FIRST){
+			menuptr->prev = NULL;
+			menuptr->next = menubarptr->menuhead;
+			//menubarptr->selected = menuptr;		
+
+			if (menubarptr->menuhead != NULL) (menubarptr->menuhead)->prev = menuptr;
+			menubarptr->menuhead = menuptr;
+			if (menubarptr->menutail == NULL) menubarptr->menutail = menuptr;
+		}
+		else{
+			menuptr->next = NULL;
+			menuptr->prev = menubarptr->menutail;
+
+			if (menubarptr->menutail != NULL) (menubarptr->menutail)->next = menuptr;
+			menubarptr->menutail = menuptr;
+			if (menubarptr->menuhead == NULL){
+				//menubarptr->selected = menuptr;		
+				menubarptr->menuhead = menuptr;
+			}
+		}
+
+		menubarptr->entries++;
+		menubarptr->changed = 1;
 	}
 	return(1);
+}
+
+menu *get_menubar_menu(menubar *menubarptr, int id){
+	menu *current;
+
+	if (menubarptr != NULL){
+		current = menubarptr->menuhead;
+		while (current != NULL){
+			if (current->id == id) return(current);
+			current = current->next;
+		}
+	}
+	return(NULL);
+}
+
+void set_menu_position(menu *menuptr, int startx, int starty){
+	if (menuptr != NULL){
+		menuptr->startx = startx;
+		menuptr->starty = starty;
+		if (menuptr->window != NULL) mvwin(menuptr->window, starty, startx);
+	}
 }
 
 int selected_menu_item_id(menu *menu){
@@ -148,79 +226,64 @@ int selected_menu_item_id(menu *menu){
 }
 	
 int select_next_item(menu *menu){
-	menuitem *current, *next;
+	menuitem *next;
 
 	if (menu != NULL){
-		current = menu->item;
-		while (current != NULL){
-			// if this is the currently selected item, find next selectable item
-			if (current == menu->selected){
-				next = current->next;
+		if (menu->selected != NULL){
+			next = (menu->selected)->next;
+			while (next != NULL){
+				if ((next->option) & M_SELECTABLE){
+					menu->selected = next;
+					break;
+				}
+				next = next->next;
+			}
+			// if reached the end, no selectable items found, start from 1st
+			// if no selectables exist, exit after entire menu is checked
+			if (next == NULL){
+				next = menu->itemhead;
 				while (next != NULL){
-					if ((next->option)&M_SELECTABLE){
+					if ((next->option) & M_SELECTABLE){
 						menu->selected = next;
 						break;
 					}
 					next = next->next;
 				}
-				// if reached the end, no selectable items found, start from 1st
-				// if no selectables exist, exit after entire menu is checked
-				if (next == NULL){
-					next = menu->item;
-					while (next != NULL){
-						if ((next->option)&M_SELECTABLE){
-                                                	menu->selected = next;
-                                                	break;
-						}
-                                        	next = next->next;
-					}
-                                }
-				break;
-			}		
-			current = current->next;
+			}
 		}
+		else menu->selected = menu->itemhead;
 	}
 	return(1);
 }
 
 int select_prev_item(menu *menu){
-	menuitem *current, *prev, *last;
+	menuitem *prev;
 
 	if (menu != NULL){
-		current = menu->item;
-		while (current != NULL){
-			// if this is the currently selected item, find previous selectable item
-			if (current == menu->selected){
-				prev = current->prev;
-				while (prev != NULL){
-					if ((prev->option)&M_SELECTABLE){
-						menu->selected = prev;
-						break;
-					}
-					prev = prev->prev;
+		if (menu->selected != NULL){
+			prev = (menu->selected)->prev;
+			while (prev != NULL){
+				if ((prev->option) & M_SELECTABLE){
+					menu->selected = prev;
+					break;
 				}
-				// if reached the beginning, no selectable items found, find last
-				// start at last and check the entire menu backwards
-				if (prev == NULL){
-					current = menu->item;
-					last = current;
-					while (current != NULL){
-						last = current;
-						current = current->next;
-					}	
-					prev = last;
-					while (prev != NULL){
-						if ((prev->option)&M_SELECTABLE){
-                                                	menu->selected = prev;
-                                                	break;
-						}
-                                        	prev = prev->prev;
+				prev = prev->prev;
+			}
+
+			// if reached the beginning, no selectable items found
+			// start at last and check the entire menu backwards
+			if (prev == NULL){
+				prev = menu->itemtail;
+				while (prev != NULL){
+					if ((prev->option) & M_SELECTABLE){
+                                                menu->selected = prev;
+                                                break;
 					}
-                                }
-				break;
+                                        prev = prev->prev;
+				}
 			}		
-			current = current->next;
 		}
+		else menu->selected = menu->itemhead;
 	}
 	return(1);
 }
@@ -241,24 +304,27 @@ menuitem *add_menu_item(menu *menuptr, char *text, char *desc, int key, int opti
 		new->id = id;
 		new->child = child;
 
-		if (menuptr->item == NULL){
-			new->next = NULL;
+		if (option & M_ADD_FIRST){
 			new->prev = NULL;
-			menuptr->item = new;
-			menuptr->selected = new;
+			new->next = menuptr->itemhead;
+			menuptr->selected = new;		
+
+			if (menuptr->itemhead != NULL) (menuptr->itemhead)->prev = new;
+			menuptr->itemhead = new;
+			if (menuptr->itemtail == NULL) menuptr->itemtail = new;
 		}
-		else {
-			last = NULL;
-			current = menuptr->item;
-			while(current != NULL){
-				last = current;
-				current = current->next;
-			}
-			last->next = new;
-			new->prev = last;
+		else{
 			new->next = NULL;
+			new->prev = menuptr->itemtail;
+
+			if (menuptr->itemtail != NULL) (menuptr->itemtail)->next = new;
+			menuptr->itemtail = new;
+			if (menuptr->itemhead == NULL){
+				menuptr->selected = new;		
+				menuptr->itemhead = new;
+			}
 		}
-		
+
 		if (menuptr->width < strlen(text) + 2){
 			 menuptr->width = strlen(text) + 2;
 		}
@@ -270,96 +336,136 @@ menuitem *add_menu_item(menu *menuptr, char *text, char *desc, int key, int opti
 }
 
 
-
 void init_all_menus(){
-	menu *serverconn;
-	menu *channeljoin;
 
+	menu *newmenu;
 
 	/** SERVER MENU ***********************************************************************************************/
 
-	ServerMenu[0] = init_menu(1, 1, "Server", 'S');
-	add_menu_item(ServerMenu[0], " Connect New ...              ", "", 0, M_SELECTABLE, E_CONNECT_NEW, NULL);
-	add_menu_item(ServerMenu[0], " Connect Favorite ...         ", "", 0, M_SELECTABLE, E_CONNECT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[0], "                              ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[0], " Add to Favorites             ", "", 0, M_SELECTABLE, E_SERVER_ADD_FAVORITE, NULL);
-	add_menu_item(ServerMenu[0], " Edit Favorites ...           ", "", 0, M_SELECTABLE, E_SERVER_EDIT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[0], "                              ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[0], " Disconnect                   ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
-	add_menu_item(ServerMenu[0], " Close                 Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(ServerMenu[0], " Exit                  Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	servermenus = init_menubar(3, 4, 0);
 
-	ServerMenu[1] = init_menu(11, 1,"Channel", 'N');
-	add_menu_item(ServerMenu[1], " Join New ...        ", "", 0, M_SELECTABLE, E_JOIN_NEW, NULL);
-	add_menu_item(ServerMenu[1], "                     ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[1], " Join Favorite ...   ", "", 0, M_SELECTABLE, E_JOIN_FAVORITE, NULL);
-	add_menu_item(ServerMenu[1], " Edit Favorites ...  ", "", 0, M_SELECTABLE, E_CHANNEL_EDIT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[1], "                     ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[1], " Channel List ...    ", "", 0, M_SELECTABLE, E_CHANNEL_LIST, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Server", 'S', MENU_NORMAL);
+	add_menu_item(newmenu, " Connect New ...              ", "", 0, M_SELECTABLE, E_CONNECT_NEW, NULL);
+	add_menu_item(newmenu, " Connect Favorite ...         ", "", 0, M_SELECTABLE, E_CONNECT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                              ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Add to Favorites             ", "", 0, M_SELECTABLE, E_SERVER_ADD_FAVORITE, NULL);
+	add_menu_item(newmenu, " Edit Favorites ...           ", "", 0, M_SELECTABLE, E_SERVER_EDIT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                              ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Disconnect                   ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
+	add_menu_item(newmenu, " Close                 Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
+	add_menu_item(newmenu, " Exit                  Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	add_menubar_menu(servermenus, newmenu, 0);	
 
-	ServerMenu[2] = init_menu(22, 1,"User", 'U');
-	add_menu_item(ServerMenu[2], " Chat New ...           ", "", 0, M_SELECTABLE, E_CHAT_NEW, NULL);
-	add_menu_item(ServerMenu[2], " Chat Favorite ...      ", "", 0, M_SELECTABLE, E_CHAT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[2], " DCC Chat New ...       ", "", 0, M_SELECTABLE, E_DCC_CHAT_NEW, NULL);
-	add_menu_item(ServerMenu[2], " DCC Chat Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], " DCC Send New ...       ", "", 0, M_SELECTABLE, E_DCC_SEND_NEW, NULL);
-	add_menu_item(ServerMenu[2], " DCC Send Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[2], " Edit Favorites ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
-	add_menu_item(ServerMenu[2], " Edit Ignored ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Channel", 'N', MENU_NORMAL);
+	add_menu_item(newmenu, " Join New ...        ", "", 0, M_SELECTABLE, E_JOIN_NEW, NULL);
+	add_menu_item(newmenu, "                     ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Join Favorite ...   ", "", 0, M_SELECTABLE, E_JOIN_FAVORITE, NULL);
+	add_menu_item(newmenu, " Edit Favorites ...  ", "", 0, M_SELECTABLE, E_CHANNEL_EDIT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                     ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Channel List ...    ", "", 0, M_SELECTABLE, E_CHANNEL_LIST, NULL);
+	add_menubar_menu(servermenus, newmenu, 0);	
 
-	ServerMenu[3] = init_menu(30, 1, "Options", 'T');
-	add_menu_item(ServerMenu[3], " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
-	add_menu_item(ServerMenu[3], "                       ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[3], " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], "                       ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[3], " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
-	add_menu_item(ServerMenu[3], " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
-	add_menu_item(ServerMenu[3], "                       ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[3], " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "User", 'U', MENU_NORMAL);
+	add_menu_item(newmenu, " Chat New ...           ", "", 0, M_SELECTABLE, E_CHAT_NEW, NULL);
+	add_menu_item(newmenu, " Chat Favorite ...      ", "", 0, M_SELECTABLE, E_CHAT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " DCC Chat New ...       ", "", 0, M_SELECTABLE, E_DCC_CHAT_NEW, NULL);
+	add_menu_item(newmenu, " DCC Chat Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
+	add_menu_item(newmenu, " DCC Send New ...       ", "", 0, M_SELECTABLE, E_DCC_SEND_NEW, NULL);
+	add_menu_item(newmenu, " DCC Send Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_FAVORITE, NULL);
+	add_menu_item(newmenu, "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Edit Favorites ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
+	add_menu_item(newmenu, " Edit Ignored ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
+	add_menubar_menu(servermenus, newmenu, 0);	
 
-	ServerMenu[4] = init_menu(41, 1, "Window", 'W');
-	add_menu_item(ServerMenu[4], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(ServerMenu[4], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Options", 'T', MENU_NORMAL);
+	add_menu_item(newmenu, " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menubar_menu(servermenus, newmenu, 0);	
 
-	ServerMenu[5] = init_menu(51, 1, "Help", 'P');
-	add_menu_item(ServerMenu[5], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ServerMenu[5], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ServerMenu[5], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ServerMenu[5], "                  ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ServerMenu[5], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Window", 'W', MENU_WINDOWLIST);
+	add_menu_item(newmenu, " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(newmenu, " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menubar_menu(servermenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Help", 'P', MENU_NORMAL);
+	add_menu_item(newmenu, " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(newmenu, " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(newmenu, " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(newmenu, "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menubar_menu(servermenus, newmenu, 0);	
 
 
 	/** CHANNEL MENU ***********************************************************************************************/
 
 
-	ChannelMenu[0] = init_menu(1, 1,"Channel", 'N');
-	add_menu_item(ChannelMenu[0], " Join New ...             ", "", 0, M_SELECTABLE, E_JOIN_NEW, NULL);
-	add_menu_item(ChannelMenu[0], " Join Favorite ...        ", "", 0, M_SELECTABLE, E_JOIN_FAVORITE, NULL);
-	add_menu_item(ChannelMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChannelMenu[0], " Add to Favorites         ", "", 0, M_SELECTABLE, E_CHANNEL_ADD_FAVORITE, NULL);
-	add_menu_item(ChannelMenu[0], " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_CHANNEL_EDIT_FAVORITE, NULL);
-	add_menu_item(ChannelMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChannelMenu[0], " Leave                    ", "", 0, M_SELECTABLE, E_CHANNEL_PART, NULL);
-	add_menu_item(ChannelMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(ChannelMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	channelmenus = init_menubar(3, 4, 0);
+	
+	newmenu = init_menu(M_AUTO, M_AUTO, "Channel", 'N', MENU_NORMAL);
+	add_menu_item(newmenu, " Join New ...             ", "", 0, M_SELECTABLE, E_JOIN_NEW, NULL);
+	add_menu_item(newmenu, " Join Favorite ...        ", "", 0, M_SELECTABLE, E_JOIN_FAVORITE, NULL);
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Add to Favorites         ", "", 0, M_SELECTABLE, E_CHANNEL_ADD_FAVORITE, NULL);
+	add_menu_item(newmenu, " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_CHANNEL_EDIT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Leave                    ", "", 0, M_SELECTABLE, E_CHANNEL_PART, NULL);
+	add_menu_item(newmenu, " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
+	add_menu_item(newmenu, " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	add_menubar_menu(channelmenus, newmenu, 0);	
 
-	ChannelMenu[1] = init_menu(12, 1, "Window", 'W');
-	add_menu_item(ChannelMenu[1], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(ChannelMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "User", 'S', MENU_NORMAL);
+	add_menu_item(newmenu, " Select ...      Ctlr-u ", "", 0, M_SELECTABLE, E_USER_SELECT, NULL);
+	add_menu_item(newmenu, "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Chat New ...           ", "", 0, M_SELECTABLE, E_CHAT_NEW, NULL);
+	add_menu_item(newmenu, " Chat Favorite ...      ", "", 0, M_SELECTABLE, E_CHAT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " DCC Chat New ...       ", "", 0, M_SELECTABLE, E_DCC_CHAT_NEW, NULL);
+	add_menu_item(newmenu, " DCC Chat Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
+	add_menu_item(newmenu, " DCC Send New ...       ", "", 0, M_SELECTABLE, E_DCC_SEND_NEW, NULL);
+	add_menu_item(newmenu, " DCC Send Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_FAVORITE, NULL);
+	add_menu_item(newmenu, "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Edit Favorites ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
+	add_menu_item(newmenu, " Edit Ignored ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
+	add_menubar_menu(channelmenus, newmenu, 0);	
 
-	ChannelMenu[2] = init_menu(22, 1, "Help", 'P');
-	add_menu_item(ChannelMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ChannelMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ChannelMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ChannelMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChannelMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Options", 'T', MENU_NORMAL);
+	add_menu_item(newmenu, " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menubar_menu(channelmenus, newmenu, 0);	
 
-	CtcpMenu = init_menu(1, 1 ,"Ctcp", 0);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Window", 'W', MENU_WINDOWLIST);
+	add_menu_item(newmenu, " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(newmenu, " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menubar_menu(channelmenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Help", 'P', MENU_NORMAL);
+	add_menu_item(newmenu, " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(newmenu, " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(newmenu, " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(newmenu, "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menubar_menu(channelmenus, newmenu, 0);	
+
+	CtcpMenu = init_menu(1, 1, "Ctcp", 0, MENU_NORMAL);
 	add_menu_item(CtcpMenu, " Ping         ", "", 0, M_SELECTABLE, E_CTCP_PING, NULL);
 	add_menu_item(CtcpMenu, " Client Info  ", "", 0, M_SELECTABLE, E_CTCP_CLIENTINFO, NULL);
 	add_menu_item(CtcpMenu, " User Info    ", "", 0, M_SELECTABLE, E_CTCP_USERINFO, NULL);
@@ -368,11 +474,11 @@ void init_all_menus(){
 	add_menu_item(CtcpMenu, " Source       ", "", 0, M_SELECTABLE, E_CTCP_SOURCE, NULL);
 	add_menu_item(CtcpMenu, " Time         ", "", 0, M_SELECTABLE, E_CTCP_TIME, NULL);
 
-	DCCMenu = init_menu(1, 1 ,"DCC", 0);
+	DCCMenu = init_menu(1, 1 ,"DCC", 0, MENU_NORMAL);
 	add_menu_item(DCCMenu, " Chat     ", "", 0, M_SELECTABLE, E_DCC_CHAT, NULL);
 	add_menu_item(DCCMenu, " Send ... ", "", 0, M_SELECTABLE, E_DCC_SEND, NULL);
 
-	ControlMenu = init_menu(1, 1 ,"Control", 0);
+	ControlMenu = init_menu(1, 1 ,"Control", 0, MENU_NORMAL);
 	add_menu_item(ControlMenu, " Op (+o)       ", "", 0, M_SELECTABLE, E_CONTROL_OP, NULL);
 	add_menu_item(ControlMenu, " DeOP (-o)     ", "", 0, M_SELECTABLE, E_CONTROL_DEOP, NULL);
 	add_menu_item(ControlMenu, " Voice (+v)    ", "", 0, M_SELECTABLE, E_CONTROL_VOICE, NULL);
@@ -382,13 +488,13 @@ void init_all_menus(){
 	add_menu_item(ControlMenu, " Ban           ", "", 0, M_SELECTABLE, E_CONTROL_BAN, NULL);
 	add_menu_item(ControlMenu, " Kick and Ban  ", "", 0, M_SELECTABLE, E_CONTROL_KICKBAN, NULL);
 
-	UserListMenu = init_menu(1, 1 ,"User List", 0);
+	UserListMenu = init_menu(1, 1 ,"User List", 0, MENU_NORMAL);
 	add_menu_item(UserListMenu, " Add to Favorites      ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
 	add_menu_item(UserListMenu, " Remove from Favorites ", "", 0, M_SELECTABLE, E_USER_REMOVE_FAVORITE, NULL);
 	add_menu_item(UserListMenu, " Ignore                ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
 	add_menu_item(UserListMenu, " Unignore              ", "", 0, M_SELECTABLE, E_USER_REMOVE_IGNORED, NULL);
 
-	UserMenu = init_menu(1, 1,"User", 0);
+	UserMenu = init_menu(1, 1, "User", 0, MENU_NORMAL);
 	add_menu_item(UserMenu, " Copy and Paste  ", "", 0, M_SELECTABLE, E_USER_PASTE, NULL);
 	add_menu_item(UserMenu, "                 ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(UserMenu, " Control ...     ", "", 0, M_SELECTABLE, -1, ControlMenu);
@@ -402,167 +508,260 @@ void init_all_menus(){
 
 	/** CHAT MENU ***********************************************************************************************/
 
+	chatmenus = init_menubar(3, 4, 0);
 
-	ChatMenu[0] = init_menu(1, 1, "Chat", 'T');
-	add_menu_item(ChatMenu[0], " Chat New ...             ", "", 0, M_SELECTABLE, E_CHAT_NEW, NULL);
-	add_menu_item(ChatMenu[0], " Chat Favorite ...        ", "", 0, M_SELECTABLE, E_CHAT_FAVORITE, NULL);
-	add_menu_item(ChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChatMenu[0], " Ignore                   ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
-	add_menu_item(ChatMenu[0], " Edit Ignore List ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
-	add_menu_item(ChatMenu[0], " Add to Favorites         ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
-	add_menu_item(ChatMenu[0], " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
-	add_menu_item(ChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChatMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(ChatMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Chat", 'T', MENU_NORMAL);
+	add_menu_item(newmenu, " Chat New ...             ", "", 0, M_SELECTABLE, E_CHAT_NEW, NULL);
+	add_menu_item(newmenu, " Chat Favorite ...        ", "", 0, M_SELECTABLE, E_CHAT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Ignore                   ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
+	add_menu_item(newmenu, " Edit Ignore List ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
+	add_menu_item(newmenu, " Add to Favorites         ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
+	add_menu_item(newmenu, " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
+	add_menu_item(newmenu, " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	add_menubar_menu(chatmenus, newmenu, 0);	
 
-	ChatMenu[1] = init_menu(9, 1, "Window", 'W');
-	add_menu_item(ChatMenu[1], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(ChatMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Options", 'N', MENU_NORMAL);
+	add_menu_item(newmenu, " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menubar_menu(chatmenus, newmenu, 0);	
 
-	ChatMenu[2] = init_menu(20, 1, "Help", 'P');
-	add_menu_item(ChatMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ChatMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ChatMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ChatMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ChatMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Window", 'W', MENU_WINDOWLIST);
+	add_menu_item(newmenu, " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(newmenu, " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menubar_menu(chatmenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Help", 'P', MENU_NORMAL);
+	add_menu_item(newmenu, " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(newmenu, " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(newmenu, " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(newmenu, "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menubar_menu(chatmenus, newmenu, 0);	
 
 
 	/** DCCCHAT MENU ***********************************************************************************************/
 
 
-	DCCChatMenu[0] = init_menu(1, 1, "DCC Chat", 'T');
+	dccchatmenus = init_menubar(3, 4, 0);
 
-	add_menu_item(DCCChatMenu[0], " DCC Chat New ...         ", "", 0, M_SELECTABLE, E_DCC_CHAT_NEW, NULL);
-	add_menu_item(DCCChatMenu[0], " DCC Chat Favorite ...    ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
-	add_menu_item(DCCChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(DCCChatMenu[0], " Ignore                   ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
-	add_menu_item(DCCChatMenu[0], " Edit Ignore List ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
-	add_menu_item(DCCChatMenu[0], " Add to Favorites         ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
-	add_menu_item(DCCChatMenu[0], " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
-	add_menu_item(DCCChatMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(DCCChatMenu[0], " Disconnect               ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
-	add_menu_item(DCCChatMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(DCCChatMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "DCC Chat", 'T', MENU_NORMAL);
+	add_menu_item(newmenu, " DCC Chat New ...         ", "", 0, M_SELECTABLE, E_DCC_CHAT_NEW, NULL);
+	add_menu_item(newmenu, " DCC Chat Favorite ...    ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Ignore                   ", "", 0, M_SELECTABLE, E_USER_ADD_IGNORE, NULL);
+	add_menu_item(newmenu, " Edit Ignore List ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
+	add_menu_item(newmenu, " Add to Favorites         ", "", 0, M_SELECTABLE, E_USER_ADD_FAVORITE, NULL);
+	add_menu_item(newmenu, " Edit Favorites ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Disconnect               ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
+	add_menu_item(newmenu, " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
+	add_menu_item(newmenu, " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	add_menubar_menu(dccchatmenus, newmenu, 0);	
 
-	DCCChatMenu[1] = init_menu(13, 1, "Window", 'W');
-	add_menu_item(DCCChatMenu[1], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(DCCChatMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Options", 'N', MENU_NORMAL);
+	add_menu_item(newmenu, " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menubar_menu(dccchatmenus, newmenu, 0);	
 
-	DCCChatMenu[2] = init_menu(24, 1, "Help",'P');
-	add_menu_item(DCCChatMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(DCCChatMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(DCCChatMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(DCCChatMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(DCCChatMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Window", 'W', MENU_WINDOWLIST);
+	add_menu_item(newmenu, " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(newmenu, " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menubar_menu(dccchatmenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Help",'P', MENU_NORMAL);
+	add_menu_item(newmenu, " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(newmenu, " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(newmenu, " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(newmenu, "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menubar_menu(dccchatmenus, newmenu, 0);	
 
 
 	/** TRANSFER MENU ***********************************************************************************************/
 
+	transfermenus = init_menubar(3, 4, 0);
 
-	TransferMenu[0] = init_menu(1, 1,"Transfer", 'T');
-	add_menu_item(TransferMenu[0], " Abort Selected           ", "", 0, M_SELECTABLE, E_TRANSFER_STOP, NULL);
-	add_menu_item(TransferMenu[0], " Info                     ", "", 0, M_SELECTABLE, E_TRANSFER_INFO, NULL);
-	add_menu_item(TransferMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(TransferMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Transfer", 'T', MENU_NORMAL);
+	add_menu_item(newmenu, " Abort Selected           ", "", 0, M_SELECTABLE, E_TRANSFER_STOP, NULL);
+	add_menu_item(newmenu, " Info                     ", "", 0, M_SELECTABLE, E_TRANSFER_INFO, NULL);
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	add_menubar_menu(transfermenus, newmenu, 0);	
 
-	TransferMenu[1] = init_menu(13, 1, "Window", 'W');
-	add_menu_item(TransferMenu[1], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(TransferMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Options", 'O', MENU_NORMAL);
+	add_menu_item(newmenu, " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menubar_menu(transfermenus, newmenu, 0);	
 
-	TransferMenu[2] = init_menu(23, 1, "Help", 'P');
-	add_menu_item(TransferMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(TransferMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(TransferMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(TransferMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(TransferMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Window", 'W', MENU_WINDOWLIST);
+	add_menu_item(newmenu, " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(newmenu, " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menubar_menu(transfermenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Help", 'P', MENU_NORMAL);
+	add_menu_item(newmenu, " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(newmenu, " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(newmenu, " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(newmenu, "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menubar_menu(transfermenus, newmenu, 0);	
 
 
 	/** LIST MENU ***************************************************************************************************/
 
-	ListMenu[0] = init_menu(1, 1,"List", 'T');
-	add_menu_item(ListMenu[0], " View ...                 ", "", 0, M_SELECTABLE, E_LIST_VIEW, NULL);
-	add_menu_item(ListMenu[0], " Add to Favorites         ", "", 0, M_SELECTABLE, E_CHANNEL_ADD_FAVORITE, NULL);
-	add_menu_item(ListMenu[0], " Join                     ", "", 0, M_SELECTABLE, E_CHANNEL_JOIN, NULL);	
-	add_menu_item(ListMenu[0], "                          ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ListMenu[0], " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(ListMenu[0], " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	listmenus = init_menubar(3, 4, 0);
 
-	ListMenu[1] = init_menu(9, 1, "Window", 'W');
-	add_menu_item(ListMenu[1], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(ListMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_DISCONNECT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "List", 'T', MENU_NORMAL);
+	add_menu_item(newmenu, " View ...                 ", "", 0, M_SELECTABLE, E_LIST_VIEW, NULL);
+	add_menu_item(newmenu, " Add to Favorites         ", "", 0, M_SELECTABLE, E_CHANNEL_ADD_FAVORITE, NULL);
+	add_menu_item(newmenu, " Join                     ", "", 0, M_SELECTABLE, E_CHANNEL_JOIN, NULL);	
+	add_menu_item(newmenu, "                          ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Close             Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
+	add_menu_item(newmenu, " Exit              Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	add_menubar_menu(listmenus, newmenu, 0);	
 
-	ListMenu[2] = init_menu(20, 1, "Help", 'P');
-	add_menu_item(ListMenu[2], " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(ListMenu[2], " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(ListMenu[2], " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(ListMenu[2], "                  ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(ListMenu[2], " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Options", 'O', MENU_NORMAL);
+	add_menu_item(newmenu, " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menubar_menu(listmenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Window", 'W', MENU_WINDOWLIST);
+	add_menu_item(newmenu, " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(newmenu, " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menubar_menu(listmenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Help", 'P', MENU_NORMAL);
+	add_menu_item(newmenu, " Client Keys      ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(newmenu, " Client Commands  ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(newmenu, " IRC Commands     ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(newmenu, "                  ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " About            ", "", 0, M_SELECTABLE, E_HELP_ABOUT, NULL);
+	add_menubar_menu(listmenus, newmenu, 0);	
 
 
 	/** HELP MENU **************************************************************************************************/
 
-	HelpMenu[0] = init_menu(1, 1, "Help",'P');
-	add_menu_item(HelpMenu[0], " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
-	add_menu_item(HelpMenu[0], " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
-	add_menu_item(HelpMenu[0], " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
-	add_menu_item(HelpMenu[0], "                        ", "", 0, M_DIVIDER, -1, NULL);
-	add_menu_item(HelpMenu[0], " Close           Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
-	add_menu_item(HelpMenu[0], " Exit            Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	helpmenus = init_menubar(3, 4, 0);
 
-	HelpMenu[1] = init_menu(9, 1, "Window", 'W');
-	add_menu_item(HelpMenu[1], " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
-	add_menu_item(HelpMenu[1], " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	newmenu = init_menu(M_AUTO, M_AUTO, "Help", 'P', MENU_NORMAL);
+	add_menu_item(newmenu, " Client Keys            ", "", 0, M_SELECTABLE, E_HELP_KEYS, NULL);
+	add_menu_item(newmenu, " Client Commands        ", "", 0, M_SELECTABLE, E_HELP_COMMANDS, NULL);
+	add_menu_item(newmenu, " IRC Commands           ", "", 0, M_SELECTABLE, E_HELP_IRC_COMMANDS, NULL);
+	add_menu_item(newmenu, "                        ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Close           Ctrl-k ", "", 0, M_SELECTABLE, E_CLOSE, NULL);
+	add_menu_item(newmenu, " Exit            Ctrl-x ", "", 0, M_SELECTABLE, E_EXIT, NULL);
+	add_menubar_menu(helpmenus, newmenu, 0);	
 
+	newmenu = init_menu(M_AUTO, M_AUTO, "Options", 'T', MENU_NORMAL);
+	add_menu_item(newmenu, " Identity ...          ", "", 0, M_SELECTABLE, E_IDENTITY, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Client Options ...    ", "", 0, M_SELECTABLE, E_OPTIONS, NULL);
+	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
+	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
+	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
+	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
+	add_menu_item(newmenu, " Save Configuration    ", "", 0, M_NONE, E_SAVE_OPTIONS, NULL);
+	add_menubar_menu(helpmenus, newmenu, 0);	
+
+	newmenu = init_menu(M_AUTO, M_AUTO, "Window", 'W', MENU_WINDOWLIST);
+	add_menu_item(newmenu, " Previous Window          ", "", 0, M_SELECTABLE, E_NEXT_WINDOW, NULL);
+	add_menu_item(newmenu, " Next Window              ", "", 0, M_SELECTABLE, E_PREV_WINDOW, NULL);
+	add_menubar_menu(helpmenus, newmenu, 0);	
 }	
 
-void print_menu(menu *menu){
+void print_menu(menu *menuptr){
+	menu *cmenu;
 	menuitem *current;
-	int ypos, i, mheight, mwidth, mstarty, mstartx, strabslen;
+	int ypos, xpos, i, mheight, mwidth, mstarty, mstartx, strabslen;
 	char text[256];
 
-	if (menu == NULL) return;
-	if (menu->starty >= LINES || menu->startx >= COLS){
+	if (menuptr == NULL) return;
+	if (menuptr->starty >= LINES || menuptr->startx >= COLS){
 		print_all("Menu cannot be displayed properly, please resize the screen.\n");
 	}
 	else {
 
-/*
-		if (menu->startx + menu->width > COLS) mwidth = COLS - menu->startx;
-		else mwidth = menu->width;
-
-		if (menu->starty + menu->height > LINES) mheight = LINES - menu->starty;
-		else mheight = menu->height;
-
-		// set this correctly to fit on screen (fix)
-		mstartx = menu->startx;
-		mstarty = menu->starty;
-*/
-
-		if (menu->startx + menu->width > COLS) mstartx = COLS - menu->width;
-		else mstartx = menu->startx;
-
-		// set this correctly to fit on screen (fix)
-		mstarty = menu->starty;
-		mwidth = menu->width;
-		mheight = menu->height;
-
-
-		if (menu->window == NULL){
-			menu->window = newwin(mheight, mwidth, mstarty, mstartx);
+		/* X position... find it if set to auto */
+		if (menuptr->startx == M_AUTO && menuptr->bar != NULL){
+	                mstartx = menuptr->bar->textstart - 2;
+			cmenu = menuptr->bar->menuhead;
+			while(cmenu != NULL){
+				if (cmenu == menuptr) break;
+				mstartx = mstartx + menuptr->bar->textspace + strlen(cmenu->name);
+				cmenu = cmenu->next;
+			}
 		}
-		else mvwin(menu->window, mstarty, mstartx);
-		if (menu->window == NULL) return;
+		else mstartx = menuptr->startx;
+		if (mstartx + menuptr->width > COLS) mstartx = COLS - menuptr->width;
+
+		/* Y position... set this correctly to fit on screen (fix) */
+		if (menuptr->starty == M_AUTO && menuptr->bar != NULL){
+			mstarty = 1;
+		}
+		else mstarty = menuptr->starty;
+
+
+		mwidth = menuptr->width;
+		mheight = menuptr->height;
+
+		if (menuptr->window == NULL){
+			menuptr->window = newwin(mheight, mwidth, mstarty, mstartx);
+		}
+		else mvwin(menuptr->window, mstarty, mstartx);
+		if (menuptr->window == NULL) return;
 
 		ypos = 0;
-		current = menu->item;	
+		current = menuptr->itemhead;	
 		curs_set(0);
 	
 		if (current != NULL && strlen(current->text) > mwidth - 2) strabslen = mwidth - 2;
 		else strabslen = 255;
 
-		wattrset(menu->window, MENU_COLOR);
-		wattron(menu->window, A_REVERSE);
-		box(menu->window,0,0);
+		wattrset(menuptr->window, MENU_COLOR);
+		wattron(menuptr->window, A_REVERSE);
+		box(menuptr->window,0,0);
 		while (current != NULL){
 
 			text[0] = 0;
@@ -573,28 +772,28 @@ void print_menu(menu *menu){
 			text[i] = 0;	
 
 			if ((current->option) & M_DIVIDER){
-				wattrset(menu->window, MENU_COLOR);
-				wattron(menu->window, A_REVERSE);
-	                	mvwhline(menu->window, ypos+1, 1, 0, mwidth-2);
+				wattrset(menuptr->window, MENU_COLOR);
+				wattron(menuptr->window, A_REVERSE);
+	                	mvwhline(menuptr->window, ypos+1, 1, 0, mwidth-2);
 			}
 			else {
-				if (current == menu->selected){
-					wattrset(menu->window, MENU_COLOR);
-					wattron(menu->window, A_NORMAL);
-					mvwaddstr(menu->window, ypos+1, 1, text);
+				if (current == menuptr->selected){
+					wattrset(menuptr->window, MENU_COLOR);
+					wattron(menuptr->window, A_NORMAL);
+					mvwaddstr(menuptr->window, ypos+1, 1, text);
 				} 
 				else if ((current->option) & M_SELECTABLE){
-					wattrset(menu->window, MENU_COLOR);
-					wattron(menu->window, A_REVERSE);
-       		                 	mvwaddstr(menu->window, ypos+1, 1, text);
+					wattrset(menuptr->window, MENU_COLOR);
+					wattron(menuptr->window, A_REVERSE);
+       		                 	mvwaddstr(menuptr->window, ypos+1, 1, text);
        		         	}
 				else{
-					wattrset(menu->window, MENU_COLOR);
-					wattron(menu->window, A_REVERSE);
-					wattron(menu->window, A_DIM);
-               		         	mvwaddstr(menu->window, ypos+1, 1, text);
-					wattrset(menu->window, MENU_COLOR);
-					wattron(menu->window, A_REVERSE);
+					wattrset(menuptr->window, MENU_COLOR);
+					wattron(menuptr->window, A_REVERSE);
+					wattron(menuptr->window, A_DIM);
+               		         	mvwaddstr(menuptr->window, ypos+1, 1, text);
+					wattrset(menuptr->window, MENU_COLOR);
+					wattron(menuptr->window, A_REVERSE);
                 		}
 			}
 
@@ -602,9 +801,9 @@ void print_menu(menu *menu){
 			if (ypos >= LINES) break;
 			current = current->next;
 		}
-		wrefresh(menu->window);
-		if (menu->chosen != NULL){
-			if ((menu->chosen)->child != NULL) print_menu ((menu->chosen)->child);
+		wrefresh(menuptr->window);
+		if (menuptr->chosen != NULL){
+			if ((menuptr->chosen)->child != NULL) print_menu ((menuptr->chosen)->child);
 		}
 	}
 }
@@ -636,7 +835,7 @@ WINDOW *print_sub_menu(WINDOW *screen, menu *menu){
 	box(menuwin,0,0);
 
 	ypos = 0;
-	current = menu->item;	
+	current = menu->itemhead;	
 	curs_set(0);
 	
 	if (strlen(current->text) > mwidth - 2) strabslen = mwidth - 2;
@@ -690,6 +889,7 @@ void print_menubar(menuwin *menuline, menubar *menubar){
         char *cmenutitle;
         menu *cmenu;
                 
+	if (menuline == NULL || menubar == NULL) return;
         curs_set(0);
                         
         // sprintf (buffer, "update %x:%x\n", menuline->update, menuline_update_status(menuline));
@@ -702,42 +902,45 @@ void print_menubar(menuwin *menuline, menubar *menubar){
                 wattrset(menuline->menuline, MENU_COLOR);
                 wattron(menuline->menuline, A_REVERSE);
                                         
-                for (i=0; i<COLS; i++) mvwaddch(menuline->menuline, 0, i, ' ');
+                for (i = 0; i < COLS; i++) mvwaddch(menuline->menuline, 0, i, ' ');
                                         
-                menuentries = menubar->entries;
+                // menuentries = menubar->entries;
                 posx = menubar->textstart;
                         
                 // print all of the menu choices highlighting selectable key
-                for (i=0; i < menuentries; i++){
-                        cmenu = (menubar->menu)[i];
-                        cmenutitle = cmenu->name;
-                        wattrset(menuline->menuline, MENU_COLOR);
-                        wattron(menuline->menuline, A_REVERSE);
-                        k = 0;
-                        for (j = 0; j < strlen(cmenutitle); j++){
-                                if (toupper(cmenutitle[j]) == toupper ((unsigned char)(cmenu->key)) && k == 0){
-                                        wattrset(menuline->menuline, MENU_COLOR);
-                                        wattron(menuline->menuline, A_BOLD);
-                                        wattron(menuline->menuline, A_STANDOUT);
-                                        wattron(menuline->menuline, A_REVERSE);
-                                        mvwaddch(menuline->menuline, 0, posx, cmenutitle[j]);
-                                        wattrset(menuline->menuline, MENU_COLOR);
-                                        wattron(menuline->menuline, A_REVERSE);
-                                        k = 1;
+		
+		cmenu = menubar->menuhead;
+		while(cmenu != NULL){
+			cmenutitle = cmenu->name;
+			wattrset(menuline->menuline, MENU_COLOR);
+			wattron(menuline->menuline, A_REVERSE);
+			k = 0;
+
+			for (j = 0; j < strlen(cmenutitle); j++){
+				if (toupper(cmenutitle[j]) == toupper ((unsigned char)(cmenu->key)) && k == 0){
+					wattrset(menuline->menuline, MENU_COLOR);
+					wattron(menuline->menuline, A_BOLD);
+					wattron(menuline->menuline, A_STANDOUT);
+					wattron(menuline->menuline, A_REVERSE);
+					mvwaddch(menuline->menuline, 0, posx, cmenutitle[j]);
+					wattrset(menuline->menuline, MENU_COLOR);
+					wattron(menuline->menuline, A_REVERSE);
+					k = 1;
                                 }
                                 else {
                                         mvwaddch(menuline->menuline, 0, posx, cmenutitle[j]);
                                 }
-                                posx++;
-                        }
-                        posx = posx + menubar->textspace;
-                }                
-                wrefresh(menuline->menuline);
-	        unset_menuline_update_status(menuline, U_ALL_REFRESH);
+				posx++;
+			}
+			posx = posx + menubar->textspace;
+			cmenu = cmenu->next;
+		}                
+		wrefresh(menuline->menuline);
+		unset_menuline_update_status(menuline, U_ALL_REFRESH);
 		touchwin(menuline->menuline);		
 	}
-	if (menubar->current != -1){
-		print_menu((menubar->menu)[menubar->current]);
+	if (menubar->selected != NULL){
+		print_menu(menubar->selected);
 	}
 
 }
@@ -747,19 +950,19 @@ int process_menubar_events(menubar *line, int event){
 	int returnevent;
 	menu *menu;
 
-	menu = (line->menu)[line->current];
-
 	if (line == NULL) return (event);
-	
+
 	// if no menus are showing test for keys that may open a menu
 	// if true set the current menu and remove event
-	else if (line->current == -1){
-                for (i = 0; i < (line->entries); i++){
-                        if (((line->menu)[i])->key == (event + 0x40)){
-                                line->current = i;
+	else if (line->selected == NULL){
+		menu = line->menuhead;
+		while(menu != NULL){
+                        if (menu->key == (event + 0x40)){
+                                line->selected = menu;
 				line->update = U_ALL_REDRAW;
                                 return(E_NONE);
                         }
+			menu = menu->next;
                 }
 		// otherwise return the event back to the previous handler
 		return(event);
@@ -770,18 +973,18 @@ int process_menubar_events(menubar *line, int event){
 	// and don't pass them to menu event handlers
 
         else if (event == KEY_LEFT){
-		line->current--;
+		line->selected = (line->selected)->prev;
 		line->update = U_BG_REDRAW;
-		if (line->current < 0){
-			line->current = line->entries - 1;
+		if (line->selected == NULL){
+			line->selected = line->menutail;
 		}
 		return (E_NONE);
 	}
         else if (event == KEY_RIGHT){
-		line->current++;
+		line->selected = (line->selected)->next;
 		line->update = U_BG_REDRAW;
-		if (line->current > line->entries - 1){
-			line->current = 0;
+		if (line->selected == NULL){
+			line->selected = line->menuhead;
 		}
 		return (E_NONE);
 	}
@@ -790,11 +993,11 @@ int process_menubar_events(menubar *line, int event){
 	// esc is an exception which closes some menu somewhere down
 	// the line and requires a backround redraw
 
-	else { 
+	else {
                 if (event == 0x01B || event == KEY_CANCEL) line->update = U_BG_REDRAW;
-		returnevent = process_menu_events(menu, event);
+		returnevent = process_menu_events(line->selected, event);
                 if (returnevent == 0x01B || returnevent == KEY_CANCEL){
-			line->current = -1;
+			line->selected = NULL;
 			return (E_NONE);	
 		}
 	}
@@ -814,7 +1017,7 @@ int process_menu_events(menu *menu, int event){
 			returnevent = process_menu_events((menu->chosen)->child, event);
 			if (returnevent == 0x01B || returnevent == KEY_CANCEL){ 
 				menu->chosen = NULL;
-				menu->selected = menu->item;
+				menu->selected = menu->itemhead;
 				return (E_NONE);
 			}
 		}
@@ -858,34 +1061,43 @@ int process_menu_events(menu *menu, int event){
 int selected_menubar_item_id(menubar *line){
 	int id = 0;
 
-	if (line == NULL || line->current < 0 || line->current > line->entries) return(0);
-	if (line->menu == NULL) return(0);
-	id = selected_menu_item_id((line->menu)[line->current]);
+	if (line == NULL || line->selected == NULL) return(0);
+	if (line->menuhead == NULL) return(0);
+	id = selected_menu_item_id(line->selected);
         
 	// if something was selected close the menu since 
 	// it isn't needed anymore 
 	if (id != 0){
-		line->current = -1;
+		line->selected = NULL;
 		line->update = U_BG_REDRAW;
 	}
 	return(id);  
 }
 
 void close_menubar(menubar *menubar){
-	menubar->current = -1;
-	menubar->update = U_BG_REDRAW;
+	if (menubar != NULL){
+		menubar->selected = NULL;
+		menubar->update = U_BG_REDRAW;
+	}
 }
 
-inline int menubar_update_status(menubar *menubar){
-	return(menubar->update);
+int menubar_update_status(menubar *menubar){
+	if (menubar != NULL){
+		return(menubar->update);
+	}
+	return(0);
 }
 
-inline void set_menubar_update_status(menubar *menubar, int update){
-	menubar->update = ((menubar->update) | (update));
+void set_menubar_update_status(menubar *menubar, int update){
+	if (menubar != NULL){
+		menubar->update = ((menubar->update) | (update));
+	}
 }
 
 void unset_menubar_update_status(menubar *menubar, int update){
-	menubar->update = ((menubar->update) & (0xffff ^ update));
+	if (menubar != NULL){
+		menubar->update = ((menubar->update) & (0xffff ^ update));
+	}
 }
 
 

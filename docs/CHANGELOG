@@ -1,3 +1,15 @@
+
+Version 0.26b Beta: Aug 24, 2005
+Timestamps and large file support
+- Added large file support, thanks to Bilal Chaudhry <bilalc AT gmail.com> 
+  for the initial patch.
+- Added timestamps, thanks to Chris Howey <howeyc AT gmail.com>
+  for the patch. 
+- Rewrote menu handlers.
+- Corrected a problem entering 8-bit ascii characters
+- Added Option menus to all screens
+- Added User menu to channels
+
 Version 0.25b Beta: May 23, 2005
 Multi server support
 - Added multiserver support
@@ -13,7 +25,7 @@ Lots of changes and bug fixes
 - Fixed repeated attempts to start dcc chat when an error occurs 
 - Added custom color support
 - Ported to BeOS - mmu_man <revol@free.fr>
-- quoted $OSNAME in case in configure (no uname -o in BeOS) - mmu_man <revol@free.fr>
+- quoted $OSNAME in case in configure (no uname -o in BeOS) - mmu_man <revol AT free.fr>
 - /msg now sends message without opening a chat window 
 - added /notice command parser
 

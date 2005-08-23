@@ -22,8 +22,6 @@
 #define FORM_ID_MODE_W 39
 #define FORM_ID_MODE_S 40
 
-#define FORM_ID_CONNECT_TIMEOUT 51 
-#define FORM_ID_AUTOSAVE 52
 #define FORM_ID_OTHER 255
 #define FORM_ID_SERVERLIST_START 1024
 
@@ -90,6 +88,14 @@
 #define FORM_ID_KICKCOLOR 147
 #define FORM_ID_MODECOLOR 148
 #define FORM_ID_INVITECOLOR 149
+
+#define FORM_ID_CONNECT_TIMEOUT 200 
+#define FORM_ID_AUTOSAVE 201
+#define FORM_ID_TIMESTAMP_FORMAT 202 
+#define FORM_ID_TIMESTAMP_CHANNEL 203 
+#define FORM_ID_TIMESTAMP_CHAT 204
+#define FORM_ID_TIMESTAMP_DCC 205 
+
 
 
 /** form event handlers *********************************************************************/
@@ -203,7 +209,7 @@ form *create_dcc_send_form(char *dlpath, char *ulpath, int blocksize, int accept
 /** client options **************************************************************************/
 
 int get_client_options(int key);
-form *create_client_options_form(int timeout, int autosave);
+form *create_client_options_form();
 
 /** list options ****************************************************************************/
 

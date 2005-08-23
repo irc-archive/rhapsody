@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2004 Adrian Gonera                                         */
+/*  Copyright (C) 2005 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -27,15 +27,17 @@
 #include <string.h>
 #include <strings.h>
 #include <netdb.h>
-#include <sys/types.h>
 #include <netinet/in.h>
-#include <sys/socket.h>
 #include <unistd.h>
-#include <sys/time.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+
 
 #include "defines.h"
 #ifdef NCURSES
@@ -50,6 +52,14 @@
 #include "network.h"
 #include "screen.h"
 #include "dcc.h"
+
+#define LARGEFILES
+
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0100000
+#endif
+
+
 
 /* start incoming dcc chat, connect to server */
 int start_incoming_dcc_chat(dcc_chat *D){
@@ -185,7 +195,7 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 
 
 /* add incoming file data to the list */
-dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, unsigned long hostip, unsigned int port, int size){
+dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, unsigned long hostip, unsigned int port, unsigned long size){
         dcc_file *firstdcc;
         dcc_file *new;
 	char filenamex[1024];
@@ -194,12 +204,13 @@ dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, 
 	struct tm *t;
 	time_t ct;
 	FILE *fp;
- 
+	int fd;
 
 	sprintf(filepath, "%s/%s", configuration.dccdlpath, filename);
 
 	/* check if the file exists, and if it does, append a timestamp extension */
 	fp = fopen(filepath, "rb");
+	
 	if (fp != NULL && configuration.dccduplicates == 1){
 		ct = time(NULL);
 		t = localtime(&ct);
@@ -211,17 +222,19 @@ dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, 
 	}
 	else strcpy(filenamex, filename);
 
-	fp = fopen(filepath, "wb");
-	if (fp == NULL){
-		vprint_all_attrib(ERROR_COLOR, "DCC File: Couldn't open file %s for writing\n", filepath);
+	//fp = fopen(filepath, "wb");
+	//if (fp == NULL){
 
+	fd = open(filepath, O_RDWR|O_CREAT|O_TRUNC|O_LARGEFILE, 0666);
+	if (fd < 0) {
+		vprint_all_attrib(ERROR_COLOR, "DCC File: Couldn't open file %s for writing\n", filepath);
 		return(NULL);
 	}
 
         firstdcc = transfer->dcclist;
         new = calloc(sizeof(dcc_file), 1);
         if (new==NULL){
-		plog ("Cannot allocate memory for DCC file transfer in add_incoming_dcc_file(:1)");
+		plog ("Cannot allocate memory for DCC file transfer in add_incoming_dcc_file");
 		exit (-1);
 	}
         if (firstdcc != NULL){
@@ -245,41 +258,56 @@ dcc_file *add_incoming_dcc_file(transfer *transfer, char *nick, char *filename, 
         new->type = DCC_RECEIVE; 
 	new->transfer = transfer;
 	new->byte=0;
-	new->dccfp = fp;
+	//new->dccfp = fp;
+	new->filefd = fd;
 	new->allowed = 0;
         return (new);
 }
 
 /* add outgoing file data to the list */
 dcc_file *add_outgoing_dcc_file(transfer *transfer, char *nick, char *filename){
+	int fd;
 	FILE *fp;
         dcc_file *firstdcc;
         dcc_file *new;
+	struct stat buf;
+	int err;
 
+#ifdef LARGEFILES
+	fd = open(filename, O_RDONLY | O_LARGEFILE);
+	if (fd < 0){
+		vprint_all_attrib(ERROR_COLOR, "DCC File: Couldn't open file %s for reading\n", filename);
+		return(NULL);
+	}	
+#else
 	fp = fopen(filename, "rb");
 	if (fp == NULL){
 		vprint_all_attrib(ERROR_COLOR, "DCC File: Couldn't open file %s for reading\n", filename);
 		return(NULL);
 	}
 
-        firstdcc = transfer->dcclist;
-        new = calloc(sizeof(dcc_file), 1);
-        if (new==NULL){
-		plog ("Cannot allocate memory for DCC file transfer in add_outgoing_dcc_file(:1)");
+#endif
+
+	firstdcc = transfer->dcclist;
+	new = calloc(sizeof(dcc_file), 1);
+	if (new==NULL){
+		plog ("Cannot allocate memory for DCC file transfer in add_outgoing_dcc_file");
 		exit (-1);
 	}
-        if (firstdcc != NULL){
-        	firstdcc->prev = new;
 
-                new->next = firstdcc;
-                new->prev = NULL;
-                transfer->dcclist = new;
+	if (firstdcc != NULL){
+		firstdcc->prev = new;
+
+		new->next = firstdcc;
+		new->prev = NULL;
+		transfer->dcclist = new;
 	}
         else {
 		new->next = NULL;
                 new->prev = NULL;
                 transfer->dcclist = new;
 	}
+
 	transfer->dcclisttop = new;
 	transfer->selectedfile = new;
         strcpy(new->filename, filename);
@@ -287,14 +315,32 @@ dcc_file *add_outgoing_dcc_file(transfer *transfer, char *nick, char *filename){
         new->type = DCC_SEND; 
 	new->transfer = transfer;
 	new->active = 0;
-
-	new->dccfp = fp;
-	new->byte=0;
+	new->byte = 0;
 
 	/* find the length of the outgoing file */
-	fseek(new->dccfp, 0, SEEK_END);
-	new->size = ftell(new->dccfp);
-	fseek(new->dccfp, 0, SEEK_SET);
+
+#ifdef LARGEFILES
+	err = fstat(fd, &buf);
+	new->size = buf.st_size;
+	
+	if (err == -1 && errno != EOVERFLOW){ 
+		vprint_all_attrib(ERROR_COLOR, "Error (%d %s) getting file size for filename %s.\n", 
+			errno, strerror(errno), filename);
+	}
+	new->filefd = fd;
+#else
+	fseek(fp, 0, SEEK_END);
+	new->size = ftell(fp);
+	if (new->size == -1){ 
+		vprint_all_attrib(ERROR_COLOR, "Error (%d %s) getting file size for filename %s.\n", 
+			errno, strerror(errno), filename);
+	}
+	fseek(fp, 0, SEEK_SET);
+	new->dccfp = fp;
+#endif
+
+	//vprint_all("filesize = %lu\n", new->size);
+
 	time(&(new->last_activity_at));
 	time(&(new->last_updated_at));
 
@@ -452,24 +498,32 @@ int get_dcc_file(dcc_file *D){
 			//vprint_all("DCC %d byte(s) recvd\n", len);
 			D->byte += len;
 
+#ifdef LARGEFILES
+			if(write(D->filefd, buffer, len) != len)
+			{
+				vprint_all_attrib(ERROR_COLOR, "Error %d, %s writing to file %s. Closing connection...\n", 
+					errno, strerror(errno), D->filename);
+				remove_dcc_file(D);		
+				return(-1);
+            		}
+#else
 			fwrite(buffer, len, 1, D->dccfp);
 			if (ferror(D->dccfp)){
 				vprint_all_attrib(ERROR_COLOR, "Error %d, %s writing to file %s. Closing connection...\n", 
 					errno, strerror(errno), D->filename);
 				remove_dcc_file(D);		
 				return(-1);
-			}			
+			}		
+#endif			
 			time(&(D->last_activity_at));
 			gen_dccack(D->byte, ack);
 			send(D->dccfd, ack, 4, 0);
-			//send_ball(D->dccfd, ack, 4);
 			
 		}
 		else if (len == 0){
 			if (D->byte == D->size){
 				gen_dccack(D->byte, ack);
 				send(D->dccfd, ack, 4, 0);
-				//send_ball(D->dccfd, ack, 4);
 			}
 			else{
 				vprint_all_attrib(ERROR_COLOR, "Error %d, %s while receiving %s. Closing connection...\n", 
@@ -482,7 +536,6 @@ int get_dcc_file(dcc_file *D){
 			//fprintf(stderr, "DCC read would block\r\n");
 			gen_dccack(D->byte, ack);
 			send(D->dccfd, ack, 4, 0);
-			//send_ball(D->dccfd, ack, 4);
 			return(0);			
 		}
 	}		
@@ -494,11 +547,22 @@ int put_dcc_file(dcc_file *D){
 	struct timeval timeout;      	
 	fd_set writefds;
 	char buffer[MAXDCCPACKET];
-	int numbytes, serr, len;
+	long numbytes;
+	int serr, len;
 	
 	len=0;
 
-	if (D->type==DCC_SEND){
+	if (D->type == DCC_SEND){
+
+#ifdef LARGEFILES
+		numbytes = read(D->filefd, buffer, MAXDCCPACKET);
+		if (numbytes < 0){
+			vprint_all_attrib(ERROR_COLOR, "Error %d, %s reading file %s. Closing connection...\n", 
+				 errno, strerror(errno), D->filename);
+			remove_dcc_file(D);		
+			return(-1);
+		}			
+#else
 		numbytes = fread(buffer, 1, MAXDCCPACKET, D->dccfp);				
 		if (feof(D->dccfp)){
 			// return(0);
@@ -509,7 +573,8 @@ int put_dcc_file(dcc_file *D){
 			remove_dcc_file(D);		
 			return(-1);
 		}			
-	
+
+#endif
 		if (numbytes > 0){
 			len = send(D->dccfd, buffer, numbytes, 0);
 			// vprint_all("Sent %d bytes %s\n", len, D->filename);
@@ -526,7 +591,11 @@ int put_dcc_file(dcc_file *D){
 			/* if the packet wasn't completed, rewind to the last sent byte */
 			else{
 				D->byte += len;
+#ifdef LARGEFILES
 				fseek(D->dccfp, D->byte, SEEK_SET);
+#else
+				lseek(D->filefd, D->byte, SEEK_SET);
+#endif
 			}
 			time(&(D->last_activity_at));
 		}
@@ -552,7 +621,7 @@ int get_dccack(dcc_file *D){
 
 	// vprint_all("looking for ack\n", ack);
 
-	if (D->type==DCC_SEND){
+	if (D->type == DCC_SEND){
 		/* get the 4 ack bytes */
 		len = recv(D->dccfd, ackbuffer, 4, 0);
 		if (len == 4){
@@ -600,6 +669,13 @@ void remove_dcc_file(dcc_file *D){
 	if (D == NULL) return;
 
 	if (D->dccfp != NULL) fclose (D->dccfp);
+	if (D->filefd != 0)
+	{
+        	if (D->type == DCC_RECEIVE && fsync(D->filefd) < 0) 
+		    	vprint_all_attrib(ERROR_COLOR, "Error fsync'ing %s: %s\n", D->filename, strerror(errno));
+      		close(D->filefd);     
+	}
+     
 	if (D->dccfd != 0) close (D->dccfd);
 
 	if (D->next == NULL && D->prev == NULL){

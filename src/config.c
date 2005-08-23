@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2004 Adrian Gonera                                         */
+/*  Copyright (C) 2005 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -68,6 +68,7 @@ int read_config(char *config_file, config *C){
 	C->channelfavorite = NULL;
 	C->ctcpfinger[0] = 0;
 	C->ctcpuserinfo[0] = 0;
+	C->timestampformat[0] = 0;
 
 	/* init the default color scheme */
 	C->menu_color_fg = DEFAULT_MENU_COLOR_F;
@@ -173,6 +174,21 @@ int read_config(char *config_file, config *C){
 						else if (strncasecmp(attrib, "CTCPUSERINFO", MAXDESCLEN) == 0){
 							strcpy(C->ctcpuserinfo, value);
 						}
+
+						/* timestamps */
+						else if (strncasecmp(attrib, "TIMESTAMPFORMAT", MAXTIMELEN) == 0){
+							strcpy(C->timestampformat, value);
+						}
+						else if (strncasecmp(attrib, "CHANNELTIMESTAMPS", MAXDESCLEN) == 0){
+							C->channeltimestamps = atoi(value);
+						}
+						else if (strncasecmp(attrib, "CHATTIMESTAMPS", MAXDESCLEN) == 0){
+							C->chattimestamps = atoi(value);
+						}
+						else if (strncasecmp(attrib, "DCCTIMESTAMPS", MAXDESCLEN) == 0){
+							C->dcctimestamps = atoi(value);
+						}
+
 
 						/* misc settings */
 						else if (strncasecmp(attrib, "AUTOSAVE", MAXDESCLEN) == 0){
@@ -281,6 +297,8 @@ int read_config(char *config_file, config *C){
 		strcpy(C->dcculpath, homepath);
 		strcpy(C->dccdlpath, homepath);
 		strcpy(C->dcchostname, hostname);
+		strcpy(C->timestampformat, DEFAULT_TIMESTAMP);
+
 		C->dccstartport = DEFAULT_DCCSTARTPORT;
 		C->dccendport = DEFAULT_DCCENDPORT;
 		C->dccblocksize = DEFAULT_DCCBLOCKSIZE;
@@ -733,6 +751,10 @@ int writeconfig(char *config_file, config *C){
 	fprintf(fp, "\n");
 	fprintf(fp, "autosave = %d\n", C->autosave);
 	fprintf(fp, "connecttimeout = %d\n", C->connecttimeout);
+	fprintf(fp, "timestampformat = %s\n", C->timestampformat);
+	fprintf(fp, "channeltimestamps = %d\n", C->channeltimestamps);
+	fprintf(fp, "chattimestamps = %d\n", C->chattimestamps);
+	fprintf(fp, "dcctimestamps = %d\n", C->dcctimestamps);
 	fprintf(fp, "\n");
 
 	fprintf(fp, "# Color Settings\n");
@@ -763,4 +785,5 @@ int writeconfig(char *config_file, config *C){
 		return(0);
 	}
 }
+
 
