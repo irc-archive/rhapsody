@@ -1,3 +1,10 @@
+Version 0.27b Beta: Feb 15, 2006
+SOCKS Version
+- Added support for HP-UX and Tru64 OSes 
+- Code cleanup
+- Added compiler selection option to configure script 
+- Added documentation install path selection to configure script 
+- Added SOCKS4 and SOCKS5 proxy support
 
 Version 0.26b Beta: Aug 24, 2005
 Timestamps and large file support

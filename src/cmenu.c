@@ -1,7 +1,7 @@
 
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2005 Adrian Gonera                                         */
+/*  Copyright (C) 2006 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -385,6 +385,7 @@ void init_all_menus(){
 	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, " Network Settings ...  ", "", 0, M_SELECTABLE, E_NETWORK_OPTIONS, NULL);
 	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
 	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
@@ -433,6 +434,7 @@ void init_all_menus(){
 	add_menu_item(newmenu, " DCC Chat Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_CHAT_FAVORITE, NULL);
 	add_menu_item(newmenu, " DCC Send New ...       ", "", 0, M_SELECTABLE, E_DCC_SEND_NEW, NULL);
 	add_menu_item(newmenu, " DCC Send Favorite ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_FAVORITE, NULL);
+	add_menu_item(newmenu, " Network Settings ...  ", "", 0, M_SELECTABLE, E_NETWORK_OPTIONS, NULL);
 	add_menu_item(newmenu, "                        ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(newmenu, " Edit Favorites ...     ", "", 0, M_SELECTABLE, E_USER_EDIT_FAVORITE, NULL);
 	add_menu_item(newmenu, " Edit Ignored ...       ", "", 0, M_SELECTABLE, E_USER_EDIT_IGNORED, NULL);
@@ -530,6 +532,7 @@ void init_all_menus(){
 	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, " Network Settings ...  ", "", 0, M_SELECTABLE, E_NETWORK_OPTIONS, NULL);
 	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
 	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
@@ -577,6 +580,7 @@ void init_all_menus(){
 	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, " Network Settings ...  ", "", 0, M_SELECTABLE, E_NETWORK_OPTIONS, NULL);
 	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
 	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
@@ -616,6 +620,7 @@ void init_all_menus(){
 	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, " Network Settings ...  ", "", 0, M_SELECTABLE, E_NETWORK_OPTIONS, NULL);
 	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
 	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
@@ -657,6 +662,7 @@ void init_all_menus(){
 	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, " Network Settings ...  ", "", 0, M_SELECTABLE, E_NETWORK_OPTIONS, NULL);
 	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
 	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
@@ -698,6 +704,7 @@ void init_all_menus(){
 	add_menu_item(newmenu, " CTCP Options ...      ", "", 0, M_SELECTABLE, E_CTCP_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Options ...       ", "", 0, M_SELECTABLE, E_DCC_OPTIONS, NULL);
 	add_menu_item(newmenu, " DCC Send Options ...  ", "", 0, M_SELECTABLE, E_DCC_SEND_OPTIONS, NULL);
+	add_menu_item(newmenu, " Network Settings ...  ", "", 0, M_SELECTABLE, E_NETWORK_OPTIONS, NULL);
 	add_menu_item(newmenu, "                       ", "", 0, M_DIVIDER, -1, NULL);
 	add_menu_item(newmenu, " Colors ...            ", "", 0, M_SELECTABLE, E_COLOR_OPTIONS, NULL);
 	add_menu_item(newmenu, " Terminal Info ...     ", "", 0, M_SELECTABLE, E_TERM_INFO, NULL);
@@ -1005,7 +1012,7 @@ int process_menubar_events(menubar *line, int event){
 }
 
 int process_menu_events(menu *menu, int event){
-	int returnevent;
+	int returnevent = 0;
 	
 	// handle menu events such as menu selection and menu wrapping
         if (menu == NULL) return (event);
@@ -1021,7 +1028,7 @@ int process_menu_events(menu *menu, int event){
 				return (E_NONE);
 			}
 		}
-		else return (returnevent);
+		return (event);
 	} 
                                 
 	else if (event == 0x0A || event == 0x0D || event == KEY_ENTER){

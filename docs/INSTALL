@@ -51,6 +51,8 @@ work on:
 * Mac OS X (Darwin)
 * Solaris
 * IRIX
+* Tru64
+* HP-UX
 * BeOS (BONE required) and Zeta (use ./configure -i /boot/apps/rhapsody)
 * Hurd
 
@@ -62,8 +64,9 @@ some of the libraries. Here's what is required:
 
 C Compiler
 
-You'll need either gcc, which is preferred, or cc, the standard compiler
-that comes with OSes like Solaris and IRIX.
+You'll need either gcc, which is preferred, or cc, the native compiler
+that comes with OSes like Solaris and IRIX. You can force compiler
+selection by running configure with the -c flag.
 
 Ncurses Library and Header Files
 
@@ -75,7 +78,7 @@ http://www.gnu.org/software/ncurses/
 
 Compilation and Installation Problems
 
-1. Error: screen.c: ncurses.h: No such file or directory
+1. Error: ncurses.h: No such file or directory
 
 This occurs when the compiler isn't able to find the ncurses.h header file
 and the configure script wasn't able to provide its location. If you
@@ -84,7 +87,7 @@ ncurses library version 5.1 or newer installed. Ncurses can be found at
 http://www.gnu.org/software/ncurses/. If ncurses is installed on your
 computer, and you know where the ncurses.h header file is located, run
 configure once again with the -h option and supply the location of the file.
-For example, if the file is ncurses.h is located in /usr/lib/include, run
+For example, if the file ncurses.h is located in /usr/lib/include, run
 configure with the following parameters:
 
 ./configure -h /usr/lib/include
@@ -122,7 +125,22 @@ libraries from different directories were returned in the above search,
 and the program doesn't link, try picking another path from the returned
 list.
 
+3. Error: undefined reference to `assume_default_colors'
 
+This error occurs when compiling with an outdated version of ncurses.
+You must have curses 5.1 or later to compile rhapsody. See above on where 
+to get an updated version of ncurses. 
+
+4. Other Miscellaneous Errors
+
+Sometimes, the compilation may fail because the compiler environment has
+not been configured correctly. In these cases it may be necessary to
+force the use of the native OS compiler. Do this by running configure
+with the following option:
+
+./configure -c cc
+
+  
 
 Runtime Problems
 

@@ -89,6 +89,12 @@
 #define FORM_ID_MODECOLOR 148
 #define FORM_ID_INVITECOLOR 149
 
+#define FORM_ID_PROXY 160
+#define FORM_ID_PROXYHOSTNAME 161
+#define FORM_ID_PROXYPORT 162
+#define FORM_ID_PROXYUSERNAME 163
+#define FORM_ID_PROXYPASSWORD 164
+
 #define FORM_ID_CONNECT_TIMEOUT 200 
 #define FORM_ID_AUTOSAVE 201
 #define FORM_ID_TIMESTAMP_FORMAT 202 
@@ -238,3 +244,8 @@ int allow_transfer(int key, dcc_file *F);
 
 int end_last_server(int key);
 int end_server_screens(int key);
+
+/** network settings ***********************************************************************/
+
+form *create_network_settings_form(int proxy, char *hostname, int port, char *user, char *pass);
+int get_network_settings(int key);

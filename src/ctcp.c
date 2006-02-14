@@ -224,7 +224,7 @@ int execute_ctcp(server *server, char *command, char *cmdnick, char *cmduser, ch
 			if (!config_user_exists(&configuration, CONFIG_IGNORED_USER_LIST, cmdnick) || 
 				config_user_exists(&configuration, CONFIG_FAVORITE_USER_LIST, cmdnick)){
 			
-				D = add_incoming_dcc_file(transferscreen, cmdnick, filename, hostip, port, size);
+				D = add_incoming_dcc_file(transferscreen, server, cmdnick, filename, hostip, port, size);
 				if (D == NULL){
 					vprint_all_attrib(DCC_COLOR, "Unable to create DCC resources\n");
 					return(FALSE);

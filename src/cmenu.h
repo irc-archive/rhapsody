@@ -62,8 +62,8 @@ void close_menubar(menubar *menubar);
 menu *get_menubar_menu(menubar *menubarptr, int id);
 
 int selected_menubar_item_id(menubar *line);
-inline int menubar_update_status(menubar *menubar);
-inline void set_menubar_update_status(menubar *menubar, int update);
+int menubar_update_status(menubar *menubar);
+void set_menubar_update_status(menubar *menubar, int update);
 void unset_menubar_update_status(menubar *menubar, int update);
 
 void init_all_menus();
@@ -81,7 +81,7 @@ int process_menu_events(menu *menu, int event);
 
 int select_next_item(menu *menuptr);
 int select_prev_item(menu *menuptr);
-inline int selected_menu_item_id(menu *menuptr);
+int selected_menu_item_id(menu *menuptr);
 
 
 extern menubar *servermenus;

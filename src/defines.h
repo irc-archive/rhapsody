@@ -7,7 +7,7 @@
 #define CODE_VERSION PROGRAM_VERSION
 #define CODE_STATE "Beta"
 #define CODE_BUILD ""
-#define CODE_COPYRIGHT "2005"
+#define CODE_COPYRIGHT "2006"
 #define CODE_DEVELOPER "Adrian Gonera"
 #define CODE_ID CODE_NAME" Version "CODE_VERSION" "CODE_STATE
 
@@ -31,6 +31,9 @@
 #define DEFAULT_CTCPCLIENTINFO "The following CTCP commands are supported: CLIENTINFO VERSION FINGER USERINFO SOURCE TIME ERROR PING DCC"
 #define DEFAULT_CTCPSOURCE "Source is available at http://rhapsody.sourceforge.net"
 #define DEFAULT_TIMESTAMP "[%H:%M] "
+
+#define DEFAULT_PROXY PROXY_DIRECT
+#define DEFAULT_PROXYPORT 1080
 
 #define D_SOCKET 0x01
 #define D_SOCKET_BUFFER 0x02

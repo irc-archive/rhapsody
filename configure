@@ -1,13 +1,15 @@
 #!/bin/sh
 
 PROGRAMNAME="rhapsody"
-PROGRAMVER="0.26b"
+PROGRAMVER="0.27b"
 
 ###########################################################
 # Get command line parameters                             #
 ###########################################################
 
+COMPILERCHOICE="gcc"
 LASTPARAM=""
+
 while [ $# -gt 0 ] ; do
 	LASTPARAM=$1
 	shift
@@ -25,11 +27,22 @@ while [ $# -gt 0 ] ; do
 			ADDTLLIBPATH=$1
 			shift
 			;;
+		-c)
+			COMPILERCHOICE=$1
+			shift
+			;;
+		-d)
+			ALTDOCSPATH=$1
+			shift
+			;;
 		--help)
 			echo "Usage: configure [-i install-path] [-h header-path] [-l library-path]"
-			echo "where	install-path is the alternate installation directory."
-			echo "	header-path is the location of ncurses header files."
-			echo "	library-path is the location of the ncurses library."
+			echo "       [-c compiler] [-d docs-install-path] "
+			echo "where  install-path is the alternate installation directory."
+			echo "       header-path is the location of ncurses header files."
+			echo "       library-path is the location of the ncurses library."
+			echo "       docs-install-path is the alternate documentation directory."
+			echo "       compiler is either \"gcc\" or the standard \"cc\"."
 			echo ""
 			exit
 			;;
@@ -58,24 +71,197 @@ echo "The OS appears to be $OS ($OSNAME) version $OSVER."
 echo ""
 
 
+if [ "$OS" = "Linux" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses"
+	GCCBASELIBPATHS="-L/usr/lib"
+	GCCBASEINCPATHS="-I/usr/include"
+	GCCBASEFLAGS="-g -Wall -Wno-unused"
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "SunOS" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses -lnsl -lsocket" 
+	GCCBASELIBPATHS=""
+	GCCBASEINCPATHS="-I/usr/local/include"
+	GCCBASEFLAGS="-g -Wall -Wno-unused"
+
+	CCBASELIBS="-lncurses -lnsl -lsocket" 
+	CCBASELIBPATHS=""
+	CCBASEINCPATHS="-I/usr/local/include"
+	CCBASEFLAGS="-g -Wall"
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "Darwin" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/sw/include /usr/include /sw/include/ncurses /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses" 
+	GCCBASELIBPATHS="-L/sw/lib"
+	GCCBASEINCPATHS="/usr/include /usr/local/include"
+	GCCBASEFLAGS="-g -Wall -Wno-unused -no-cpp-precomp"
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "OpenBSD" -o $OS = "FreeBSD" -o $OS = "NetBSD" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses" 
+	GCCBASELIBPATHS="-L/usr/lib"
+	GCCBASEINCPATHS="-I/usr/include"
+	GCCBASEFLAGS="-g -Wall -Wno-unused"
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "IRIX64" ] ; then
+	CCPATH="/usr/freeware/bin /usr/bin"
+	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses" 
+	GCCBASELIBPATHS="-L/usr/freeware/lib64"
+	GCCBASEINCPATHS=""
+	GCCBASEFLAGS="-mabi=64 -g -Wall -Wno-unused"
+
+	CCBASELIBS="-lncurses" 
+	CCBASELIBPATHS=""
+	CCBASEINCPATHS=""
+	CCBASEFLAGS="-mabi=64"
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "IRIX" ] ; then
+	CCPATH="/usr/freeware/bin /usr/bin"
+	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses" 
+	GCCBASELIBPATHS="-L/usr/freeware/lib32"
+	GCCBASEINCPATHS=""
+	GCCBASEFLAGS="-mabi=n32 -g -Wall -Wno-unused"
+
+	CCBASELIBS="-lncurses" 
+	CCBASELIBPATHS=""
+	CCBASEINCPATHS=""
+	CCBASEFLAGS="-mabi=n32 -g -Wall"
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "BeOS" -o "$OS" = "Zeta" ] ; then
+	CCPATH="/boot/develop/bin /bin /usr/bin /usr/local/bin"
+	CURSESPATH="/boot/develop/headers /boot/develop/headers/gnu /boot/home/config/include"
+
+	GCCBASELIBS="-lncurses -lsocket -lbind"
+	GCCBASELIBPATHS="-L/boot/home/config/lib"
+	GCCBASEINCPATHS="-I/boot/home/config/include"
+	GCCBASEFLAGS="-g -Wall -Wno-unused"
+
+	CCBASELIBS=""
+	CCBASELIBPATHS=""
+	CCBASEINCPATHS=""
+	CCBASEFLAGS=""
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "HP-UX" ] ; then
+	CCPATH="/bin /usr/bin /usr/local/bin"
+	CURSESPATH="/usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses" 
+	GCCBASELIBPATHS="-L/usr/lib -L/lib -L/usr/local/lib"
+	GCCBASEINCPATHS="-I/usr/local/include"
+	GCCBASEFLAGS="-g -Wall -Wno-unused"
+
+	CCBASELIBS="-lncurses" 
+	CCBASELIBPATHS="-L/usr/lib -L/lib -L/usr/local/lib"
+	CCBASEINCPATHS="-I/usr/local/include"
+	CCBASEFLAGS="-g"
+
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+elif [ "$OS" = "OSF1" ] ; then
+	CCPATH="/bin /usr/bin /usr/local/bin"
+	CURSESPATH="/usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses" 
+	GCCBASELIBPATHS="-L/usr/lib -L/lib -L/usr/local/lib"
+	GCCBASEINCPATHS="-I/usr/include -I/usr/local/include"
+	GCCBASEFLAGS="-g -Wall -Wno-unused"
+
+	CCBASELIBS="-lncurses" 
+	CCBASELIBPATHS="-L/usr/lib -L/lib -L/usr/local/lib"
+	CCBASEINCPATHS="-I/usr/include -I/usr/local/include"
+	CCBASEFLAGS="-g"
+
+	STDDOCSPATH="/usr/doc/rhapsody"
+
+elif [ "$OSNAME" = "Cygwin" ] ; then
+	CCPATH="/usr/bin /usr/local/bin"
+	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses" 
+	GCCBASELIBPATHS="-L/usr/lib -L/lib"
+	GCCBASEINCPATHS=""
+	GCCBASEFLAGS="-g -Wall -Wno-unused"
+
+	PROGRAMNAME="rhapsody.exe"
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+
+else	
+	echo "This OS is not currently supported, but I will try to make it work."
+	CCPATH="/bin /sbin /usr/bin /usr/sbin/ /usr/local/bin/ /usr/local/sbin" 
+	CURSESPATH="/include /usr/include /include/ncurses /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
+
+	GCCBASELIBS="-lncurses"
+	GCCBASELIBPATHS="-L/usr/lib"
+	GCCBASEINCPATHS="-I/usr/include -I/include"
+	GCCBASEFLAGS=""
+
+	CCBASELIBS="-lncurses"
+	CCBASELIBPATHS="-L/usr/lib"
+	CCBASEINCPATHS="-I/usr/include -I/include"
+	CCBASEFLAGS=""
+
+	BASEOS=$OS
+	STDDOCSPATH="/usr/share/doc/rhapsody"
+fi 
+
 ###########################################################
-# Set the install path if not provided                    #
+# Set install, docs, header and lib path if not provided  #
 ###########################################################
 
-if [ -z "$INSTALLPATH" ] ; then 
-	if [ $USER = "root" ] ; then
-		echo "Running as root."
+if [ $USER = "root" ] ; then
+	echo "Running as root."
+
+	if [ -z "$INSTALLPATH" ] ; then 
 		INSTALLPATH="/usr/local/bin"
+	fi	
+	if [ -z "$ALTDOCSPATH" ] ; then 
+		INSTDOCSPATH="$STDDOCSPATH"
 	else
-		echo "NOT RUNNING AS ROOT."
-		INSTALLPATH="$HOME/rhapsody"
+		INSTDOCSPATH="$ALTDOCSPATH"
 	fi
-	echo "Install path is \"$INSTALLPATH\"."
-	echo "You can override the default installation path by running:"
-	echo "configure -i <install-path>."
+
 else
-	echo "Install path is \"$INSTALLPATH\"."	
+	echo "NOT RUNNING AS ROOT."
+	if [ -z "$INSTALLPATH" ] ; then 
+		INSTALLPATH="$HOME/rhapsody"
+	fi	
+	if [ -z "$ALTDOCSPATH" ] ; then 
+		INSTDOCSPATH="$INSTALLPATH/docs"
+	else
+		INSTDOCSPATH="$ALTDOCSPATH"
+	fi
 fi
+echo "Install path is \"$INSTALLPATH\"."
+echo "Documentation path is \"$INSTDOCSPATH\"."	
+echo "You can override the default install and document path by running:"
+echo "configure -i <install-path> -d <document-path>"
 
 if [ -n "$ADDTLHEADERPATH" ] ; then
 	echo "Additional header path is \"$ADDTLHEADERPATH\""
@@ -87,74 +273,6 @@ if [ -n "$ADDTLLIBPATH" ] ; then
 fi
 echo ""
 
-
-if [ "$OS" = "Linux" ] ; then
-	CCPATH="/usr/bin /usr/local/bin"
-	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
-	BASELIBS="-lncurses"
-	BASELIBPATHS="-L/usr/lib"
-	BASEINCPATHS="-I/usr/include"
-	BASEFLAGS=""
-elif [ "$OS" = "SunOS" ] ; then
-	CCPATH="/usr/bin /usr/local/bin"
-	CURSESPATH="/usr/include /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
-	BASELIBS="-lncurses -lnsl -lsocket" 
-	BASELIBPATHS=""
-	BASEINCPATHS="-I/usr/local/include/"
-	BASEFLAGS=""
-elif [ "$OS" = "Darwin" ] ; then
-	CCPATH="/usr/bin /usr/local/bin"
-	CURSESPATH="/sw/include /usr/include /sw/include/ncurses /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
-	INCPATH="/usr/include /usr/local/include"
-	BASELIBS="-lncurses" 
-	BASELIBPATHS="-L/sw/lib"
-	BASEINCPATHS=""
-	BASEFLAGS="-no-cpp-precomp"
-elif [ "$OS" = "OpenBSD" -o $OS = "FreeBSD" -o $OS = "NetBSD" ] ; then
-	CCPATH="/usr/bin /usr/local/bin"
-	BASELIBS="-lncurses" 
-	BASELIBPATHS="-L/usr/lib"
-	BASEINCPATHS="-I/usr/include"
-	BASEFLAGS=""	
-elif [ "$OS" = "IRIX64" ] ; then
-	CCPATH="/usr/freeware/bin /usr/bin"
-	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
-	BASELIBS="-lncurses" 
-	BASELIBPATHS="-L/usr/freeware/lib64"
-	BASEINCPATHS=""
-	BASEFLAGS="-mabi=64"
-elif [ "$OS" = "IRIX" ] ; then
-	CCPATH="/usr/freeware/bin /usr/bin"
-	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
-	BASELIBS="-lncurses" 
-	BASELIBPATHS="-L/usr/freeware/lib32"
-	BASEINCPATHS=""
-	BASEFLAGS="-mabi=n32"
-elif [ "$OS" = "BeOS" -o "$OS" = "Zeta" ] ; then
-	CCPATH="/boot/develop/bin /bin"
-	CURSESPATH="/boot/develop/headers /boot/develop/headers/gnu /boot/home/config/include"
-	BASELIBS="-lncurses -lsocket -lbind"
-	BASELIBPATHS="-L/boot/home/config/lib"
-	BASEINCPATHS="-I/boot/home/config/include"
-	BASEFLAGS=""
-elif [ "$OSNAME" = "Cygwin" ] ; then
-	CCPATH="/usr/bin /usr/local/bin"
-	CURSESPATH="/usr/freeware/include/ncurses /usr/include /usr/local/include /usr/include/ncurses /usr/local/include/ncurses"
-	BASELIBS="-lncurses" 
-	BASELIBPATHS="-L/usr/lib -L/lib"
-	BASEINCPATHS=""
-	BASEFLAGS=""
-	PROGRAMNAME="rhapsody.exe"
-else	
-	echo "This OS is not currently supported, but I will try to make it work."
-	CCPATH="/bin /sbin /usr/bin /usr/sbin/ /usr/local/bin/ /usr/local/sbin" 
-	CURSESPATH="/include /usr/include /include/ncurses /usr/include/ncurses /usr/local/include /usr/local/include/ncurses"
-	BASELIBS="-lncurses"
-	BASELIBPATHS="-L/usr/lib"
-	BASEINCPATHS="-I/usr/include -I/include"
-	BASEFLAGS=""
-	BASEOS=$OS
-fi 
 
 
 ###########################################################
@@ -174,14 +292,26 @@ for CURRPATH in $CCPATH ; do
 	
 done
 
-if [ -n "$GCC" ] ; then
+if [ -n "$GCC" -a "$COMPILERCHOICE" = "gcc" ] ; then
 	echo "Found gcc in $GCC, using gcc."
 	COMPILER=$GCC
-elif [ -n "$CC" ] ; then
+	BASELIBS=$GCCBASELIBS
+	BASELIBPATHS=$GCCBASELIBPATHS
+	BASEINCPATHS=$GCCBASEINCPATHS
+	BASEFLAGS=$GCCBASEFLAGS
+elif [ -n "$CC" -a "$COMPILERCHOICE" = "cc" ] ; then
 	echo "Found cc in $CC, using cc."
 	COMPILER=$CC
+	BASELIBS=$CCBASELIBS  
+        BASELIBPATHS=$CCBASELIBPATHS  
+        BASEINCPATHS=$CCBASEINCPATHS 	
+	BASEFLAGS=$CCBASEFLAGS
 fi
 
+if [ -z "$COMPILER" ] ; then
+	echo "No suitable compiler found or selected... stopping"
+	exit 1
+fi 
 
 ###########################################################
 # Find ncurses.h if required                              #
@@ -222,6 +352,7 @@ echo "BASELIBPATHS=$BASELIBPATHS" >> Makefile.inc
 echo "BASEINCPATHS=$BASEINCPATHS $CURSESHEADERPATH $ADDTLHEADERPATH" >> Makefile.inc
 echo "BASEFLAGS=$BASEFLAGS" >> Makefile.inc
 echo "INSTALLPATH=$INSTALLPATH" >> Makefile.inc
+echo "INSTDOCSPATH=$INSTDOCSPATH" >> Makefile.inc
 echo "PROGRAMVER=$PROGRAMVER" >> Makefile.inc
 echo "PROGRAMNAME=$PROGRAMNAME" >> Makefile.inc
 echo
@@ -232,6 +363,7 @@ echo
 ###########################################################
 
 echo "#define INSTALL_PATH \"$INSTALLPATH\"" > autodefs.h
+echo "#define DOCS_PATH \"$INSTDOCSPATH\"" >> autodefs.h
 echo "#define PROGRAM_NAME \"$PROGRAMNAME\"" >> autodefs.h
 echo "#define PROGRAM_VERSION \"$PROGRAMVER\"" >> autodefs.h
 

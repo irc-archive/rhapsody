@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2005 Adrian Gonera                                         */
+/*  Copyright (C) 2006 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -65,6 +65,8 @@
 #include "option.h"
 #include "comm.h"
 #include "misc.h"
+#include "socks4.h"
+#include "socks5.h"
 
 int currentmenunum;
 int menuchanged;
@@ -122,7 +124,6 @@ int main(int argc, char *argv[]){
   
 	server *S;
 	screen *current, *tempscr;
-	dcc_chat *currentdccchat;
 	dcc_file *currentdcc;
 	dcc_file *nextdcc;
 
@@ -237,7 +238,6 @@ int main(int argc, char *argv[]){
 
 		// vprint_all(" A key = %d\n", key);
 
-
 		/* make sure the current terminal window is at least a usable size */
 		if (LINES < MINWINDOWHEIGHT || COLS < MINWINDOWWIDTH){
 			refresh();
@@ -305,44 +305,64 @@ int main(int argc, char *argv[]){
 		current=screenlist;
 		while(current!=NULL){
 			if (current->type==SERVER){
+				server *Sp = (server *)current->info;
+
 				// if connecting to the server, call the connect function
-				if (((server *)(current->info))->connect_status >= 0){
-					connect_to_server((server *)(current->info));
+				if (Sp->connect_status >= 0){
+					connect_to_server(Sp);
 					key = E_NOWAIT;
 				}
-				else if (((server *)(current->info))->active){
-					sfd = ((server *)(current->info))->serverfd;
+				else if (Sp->active){
+					sfd = Sp->serverfd;
 					FD_SET(sfd, &readfds);
-					if (maxsfd<sfd) maxsfd=sfd;
+					if (maxsfd < sfd) maxsfd = sfd;
 				}
-				((server *)(current->info))->servernum = numservers;
+
+				// add proxy descriptors as well
+				if (Sp->proxyactive){
+					sfd = Sp->proxyfd;
+					FD_SET(sfd, &readfds);
+					if (maxsfd < sfd) maxsfd = sfd;
+				}
+				Sp->servernum = numservers;
 				numservers++;
 				
 			}
 			if (current->type==DCCCHAT){
-				if (((dcc_chat *)(current->info))->active){
-					sfd = ((dcc_chat *)(current->info))->dccfd;
+				dcc_chat *DCp = (dcc_chat *)current->info;
+				if (DCp->active){
+					sfd = DCp->dccfd;
 					FD_SET(sfd, &readfds);
-					if (maxsfd<sfd) maxsfd=sfd;
+					if (maxsfd < sfd) maxsfd = sfd;
+				}
+				else if (DCp->proxyactive){
+					sfd = DCp->proxyfd;
+					FD_SET(sfd, &readfds);
+					if (maxsfd < sfd) maxsfd = sfd;
 				}
 			}
 			if (current->type==TRANSFER){
-				currentdcc = ((transfer *)current->info)->dcclist;
-				while(currentdcc!=NULL){
+				dcc_file *DFp = ((transfer *)current->info)->dcclist;
+				while(DFp != NULL){
 					/* if receiving, worry about the incoming data */
-					if (currentdcc->active && currentdcc->type == DCC_RECEIVE){	
-						sfd = currentdcc->dccfd;
+					if (DFp->active && DFp->type == DCC_RECEIVE){	
+						sfd = DFp->dccfd;
 						FD_SET(sfd, &readfds);
-						if (maxsfd<sfd) maxsfd=sfd;
+						if (maxsfd < sfd) maxsfd = sfd;
 					}
 					/* if sending, watch incoming and outgoing sockets */
-					else if (currentdcc->active && currentdcc->type == DCC_SEND){
-						sfd = currentdcc->dccfd;
+					else if (DFp->active && DFp->type == DCC_SEND){
+						sfd = DFp->dccfd;
 						FD_SET(sfd, &readfds);
 						FD_SET(sfd, &writefds);
-						if (maxsfd<sfd) maxsfd=sfd;
+						if (maxsfd < sfd) maxsfd = sfd;
 					}
-					currentdcc=currentdcc->next;
+					else if (DFp->proxyactive){
+						sfd = DFp->proxyfd;
+						FD_SET(sfd, &readfds);
+						if (maxsfd < sfd) maxsfd = sfd;
+					}
+					DFp = DFp->next;
 				}
 			}
 
@@ -371,55 +391,87 @@ int main(int argc, char *argv[]){
 		while(current!=NULL){
 			// if this is an active (non-disconnected) server and its socket is ready	
 			if (current->type == SERVER){				
-				if (serr > 0 && ((server *)(current->info))->active &&
-				FD_ISSET(((server*)(current->info))->serverfd, &readfds)) {
-					serr = recv_line(((server *)(current->info))->serverfd, 
-						((server *)(current->info))->buffer,
-						&(((server *)(current->info))->bufferoffset), 
-						MAXDATASIZE - 1);
+				server *Sp = (server *)current->info;
+
+				if (serr > 0 && Sp->active && FD_ISSET(Sp->serverfd, &readfds)) {
+					serr = recv_line(Sp->serverfd, Sp->buffer,
+						&(Sp->bufferoffset), MAXDATASIZE - 1);
 					if (serr == -1){
 						// got disconnected, set server connect flags
-						((server *)(current->info))->active = 0;
-						((server *)(current->info))->connect_status = -1;
+						Sp->active = 0;
+						Sp->connect_status = -1;
 						set_statusline_update_status(statusline, U_ALL_REFRESH);
-						vprint_server_attrib((server *)(current->info), 
-							ERROR_COLOR, "Disconnected from %s\n", ((server *)(current->info))->server);
+						vprint_server_attrib(Sp, ERROR_COLOR, 
+							"Disconnected from %s\n", Sp->server);
 					}
 					if (serr == 0);					
-					else parse_message((server *)(current->info), 
-						((server *)(current->info))->buffer);
+					else parse_message(Sp, Sp->buffer);
+				}
+				// read proxy descriptors
+				else if (serr > 0 && Sp->proxyactive && FD_ISSET(Sp->proxyfd, &readfds)) {
+					serr = recv_ball(Sp->proxyfd, Sp->buffer, MAXDATASIZE - 1);
+					if (serr == -1){
+						// got disconnected, set server connect flags
+						Sp->proxyactive = 0;
+						Sp->connect_status = -1;
+						set_statusline_update_status(statusline, U_ALL_REFRESH);
+						vprint_server_attrib(Sp, ERROR_COLOR, 
+							"Disconnected from %s\n", Sp->server);
+					}
+					if (serr == 0);		
+					else {
+						if (Sp->proxy == PROXY_SOCKS4){
+							process_sock4_server_message(Sp, Sp->buffer, serr);
+						}
+						else if (Sp->proxy == PROXY_SOCKS5){
+							process_sock5_server_message(Sp, Sp->buffer, serr);
+						}
+					}
 				}
 			}
 
 			/* if this is an active (started, non-disconnected) dcc chat and its socket is ready */
 
 			else if (current->type == DCCCHAT){
-				currentdccchat = current->info;
-				if (serr > 0 && currentdccchat->active && FD_ISSET(currentdccchat->dccfd, &readfds)) {	
+				dcc_chat *DCp = (dcc_chat *)current->info;
+				if (serr > 0 && DCp->active && FD_ISSET(DCp->dccfd, &readfds)) {	
 
 					bzero(buffer, MAXDATASIZE);	
-					serr = recv_all(currentdccchat->dccfd, buffer, MAXDATASIZE-1);
+					serr = recv_all(DCp->dccfd, buffer, MAXDATASIZE-1);
 					if (serr == -1) {
 						/* error, kill the chat socket */
-						print_dcc_chat(currentdccchat, "Remote host ended connection\n");
-						remove_dcc_chat(currentdccchat);
+						print_dcc_chat(DCp, "Remote host ended connection\n");
+						remove_dcc_chat(DCp);
 					}
 					else if (serr == 0){
 						// minor error, continue (currently blocking only)				
-						// print_dcc_chat(currentdccchat, "Socket error occured");
+						// print_dcc_chat(DCp, "Socket error occured");
 					}
-					else printmsg_dcc_chat(currentdccchat, currentdccchat->nick, buffer);
+					else printmsg_dcc_chat(DCp, DCp->nick, buffer);
+				}
+				else if (serr > 0 && DCp->proxyactive && FD_ISSET(DCp->proxyfd, &readfds)) {
+					serr = recv_ball(DCp->proxyfd, buffer, MAXDATASIZE - 1);
+					if (DCp->proxy == PROXY_SOCKS4){
+						process_sock4_dccchat_message(DCp, buffer, serr);
+						key = E_NOWAIT;
+					}
+					else if (DCp->proxy == PROXY_SOCKS5){
+						process_sock5_dccchat_message(DCp, buffer, serr);
+						key = E_NOWAIT;
+					}
 				}
 
 				/* set up DCC servers and listen for connections  */
 				/* for outgoing chats, and start them immediately */
-				else if (currentdccchat->active == 0 && currentdccchat->direction == DCC_SEND){ 
-					start_outgoing_dcc_chat(currentdccchat);
+				else if (DCp->active == 0 && DCp->direction == DCC_SEND){ 
+					start_outgoing_dcc_chat(DCp);
+					key = E_NOWAIT;
 				}
 				/* for incoming chat, permission to start may be required */
-				else if (currentdccchat->active == 0 && currentdccchat->direction == DCC_RECEIVE &&
-					currentdccchat->serverstatus == 0){ 
-					start_incoming_dcc_chat(currentdccchat);
+				else if (DCp->active == 0 && DCp->direction == DCC_RECEIVE &&
+					DCp->server_status == 0){ 
+					start_incoming_dcc_chat(DCp);
+					key = E_NOWAIT;
 				}
 			}
 			current=(current->next);
@@ -440,8 +492,17 @@ int main(int argc, char *argv[]){
 						get_dccack(currentdcc);
 					}
 				}
-			}
 
+				else if (serr > 0 && currentdcc->proxyactive && FD_ISSET(currentdcc->proxyfd, &readfds)) {
+					serr = recv_ball(currentdcc->proxyfd, buffer, MAXDATASIZE - 1);
+					if (currentdcc->proxy == PROXY_SOCKS4){
+						process_sock4_dccfile_message(currentdcc, buffer, serr);
+					}
+					else if (currentdcc->proxy == PROXY_SOCKS5){
+						process_sock5_dccfile_message(currentdcc, buffer, serr);
+					}
+				}
+			}
 
 			/* incoming transfer finished, clean up and close socket */
 			if (currentdcc->type == DCC_RECEIVE && currentdcc->byte >= currentdcc->size){
@@ -497,7 +558,6 @@ int main(int argc, char *argv[]){
 					}
 				}
 			}
-	
 			currentdcc=nextdcc;
 		}
 
@@ -893,9 +953,9 @@ int process_channel_events(int key){
 						new_dccchat = add_outgoing_dcc_chat(selected_channel_nick(currentchannel), 
 							currentserver->nick, currentserver);
 						start_outgoing_dcc_chat(new_dccchat);
-						sendcmd_server(currentserver, "PRIVMSG",
-						create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), 
-							selected_channel_nick(currentchannel), "");
+						//sendcmd_server(currentserver, "PRIVMSG",
+						//create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), 
+							//selected_channel_nick(currentchannel), "");
 					}
 					else currentscreen = dcc_chat_screen_by_name(selected_channel_nick(currentchannel), currentserver);
 					set_dccchat_update_status(new_dccchat, U_ALL_REFRESH);
@@ -1279,7 +1339,6 @@ int process_dccchat_events(int key){
 				sendmsg_dcc_chat(currentchat, inputbuffer);
 				printmymsg_dcc_chat(currentchat, inputbuffer);
 			}
-			else if (i != E_NONE) key = i;
 			else print_dcc_chat(currentchat, "Remote client is not connected.\n");
 		}
 		print_inputline(inputline);
@@ -2187,6 +2246,7 @@ int process_common_form_events(screen *inscreen, int key){
 	else if (key == E_DCC_OPTIONS && currentform == 0) newform = CF_DCC_OPTIONS;
 	else if (key == E_DCC_SEND_OPTIONS && currentform == 0) newform = CF_DCC_SEND_OPTIONS;
 	else if (key == E_COLOR_OPTIONS && currentform == 0) newform = CF_COLOR_OPTIONS;
+	else if (key == E_NETWORK_OPTIONS && currentform == 0) newform = CF_NETWORK_OPTIONS;
 	else if (key == E_TERM_INFO && currentform == 0) newform = CF_TERM_INFO;
 
 	else if (key == E_SAVE_OPTIONS){
@@ -2467,8 +2527,9 @@ int process_common_form_events(screen *inscreen, int key){
 				if (new_dccchat == NULL){ 
 					new_dccchat = add_outgoing_dcc_chat(newuser, currentserver->nick, currentserver);
 					start_outgoing_dcc_chat(new_dccchat);
-					sendcmd_server(currentserver, "PRIVMSG",
-					create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), newuser, "");
+					//sendcmd_server(currentserver, "PRIVMSG",
+					//create_ctcp_command("DCC CHAT chat", "%lu %d", 
+					//new_dccchat->localip, new_dccchat->localport), newuser, "");
 				}
 				else currentscreen = dcc_chat_screen_by_name(newuser, currentserver);
 				set_dccchat_update_status(new_dccchat, U_ALL_REFRESH);
@@ -2498,8 +2559,9 @@ int process_common_form_events(screen *inscreen, int key){
 				if (new_dccchat == NULL){ 
 					new_dccchat = add_outgoing_dcc_chat(newuser, currentserver->nick, currentserver);
 					start_outgoing_dcc_chat(new_dccchat);
-					sendcmd_server(currentserver, "PRIVMSG",
-					create_ctcp_command("DCC CHAT chat", "%lu %d", new_dccchat->localip, new_dccchat->localport), newuser, "");
+					//sendcmd_server(currentserver, "PRIVMSG",
+					//create_ctcp_command("DCC CHAT chat", "%lu %d", 
+					//new_dccchat->localip, new_dccchat->localport), newuser, "");
 				}
 				else currentscreen = dcc_chat_screen_by_name(newuser, currentserver);
 				set_dccchat_update_status(new_dccchat, U_ALL_REFRESH);
@@ -2568,23 +2630,12 @@ int process_common_form_events(screen *inscreen, int key){
 	else if (currentform == CF_DCC_SEND_FILE){
 		formcode = select_file(formkey, newfile, 0);
 		if (formcode == E_OK){
-			new_dccfile = add_outgoing_dcc_file(transferscreen, newuser, newfile);
+			new_dccfile = add_outgoing_dcc_file(transferscreen, currentserver, newuser, newfile);
 			if (new_dccfile != NULL){
 				start_outgoing_dcc_file(new_dccfile);
-
-				/* truncate the filename by dropping path */		
-				for (i = strlen(newfile) - 1; i >= 0; i--){
-					if (newfile[i] == '/'){
-						i++;
-						break;
-					}
-				}
-			
-				sendcmd_server(currentserver, "PRIVMSG", create_ctcp_command("DCC SEND", "%s %lu %d %d", 
-				newfile + i, new_dccfile->localip, new_dccfile->localport, new_dccfile->size), newuser, "");
 				update = U_ALL_REFRESH;
-				key = E_NOWAIT;
 				currentform = 0;
+				key = E_NOWAIT;
 			}
 		}
 		else if (formcode == E_CANCEL){
@@ -2660,6 +2711,14 @@ int process_common_form_events(screen *inscreen, int key){
 	}
 	else if (currentform == CF_DCC_SEND_OPTIONS){
 		formcode = get_dcc_send_info(formkey);
+		if (formcode == E_OK || formcode == E_CANCEL){
+			update = U_ALL_REFRESH;
+			currentform = 0;
+			key = E_NOWAIT;
+		}
+	}
+	else if (currentform == CF_NETWORK_OPTIONS){
+		formcode = get_network_settings(formkey);
 		if (formcode == E_OK || formcode == E_CANCEL){
 			update = U_ALL_REFRESH;
 			currentform = 0;
@@ -3119,8 +3178,9 @@ int parse_input(server *currentserver, char *buffer){
 						if (D == NULL){ 
 							D = add_outgoing_dcc_chat(nick, currentserver->nick, currentserver);
 							start_outgoing_dcc_chat(D);
-							sendcmd_server(currentserver, "PRIVMSG",
-							create_ctcp_command("DCC CHAT chat", "%lu %d", D->localip, D->localport), nick, "");
+							//sendcmd_server(currentserver, "PRIVMSG",
+							//create_ctcp_command("DCC CHAT chat", "%lu %d", D->localip, 
+							//D->localport), nick, "");
 						}
 						else currentscreen = dcc_chat_screen_by_name(nick, currentserver);
 						set_dccchat_update_status(D, U_ALL_REFRESH);
@@ -3144,20 +3204,9 @@ int parse_input(server *currentserver, char *buffer){
 						vprint_all_attrib(MESSAGE_COLOR, "Attempting to DCC Send file %s to %s.\n",
 							file, nick);
 
-						/* truncate the filename by dropping path */		
-						for (i = strlen(file) - 1; i >= 0; i--){
-							if (file[i] == '/'){
-								break;
-							}
-						}
-						i++;
-			
-						S = add_outgoing_dcc_file(transferscreen, nick, file);
+						S = add_outgoing_dcc_file(transferscreen, currentserver, nick, file);
 						if (S != NULL){
 							start_outgoing_dcc_file(S);
-
-							sendcmd_server(currentserver, "PRIVMSG", create_ctcp_command("DCC SEND", "%s %lu %d %d", 
-							file + i, S->localip, S->localport, S->size), nick, "");
 						}
 					}
 				}
@@ -4003,13 +4052,16 @@ int int_handler(void){
 	printf("SIGINT caught. Exiting...\n");
 
 	exit(0);
+	return(0);
 }
 
 int abrt_handler(void){
 	curs_set(1);
         endwin();
 	printf("SIGABRT caught. Exiting...\n");
+
 	exit(0);
+	return(0);
 }
 
 int pipe_handler(void){
@@ -4023,7 +4075,7 @@ int inst_ctrlc_handler(){
 	struct sigaction act;
  
 	bzero(&act, sizeof(struct sigaction));
-	act.sa_handler = (void *)ctrl_c_handler;
+	act.sa_handler = (void(*)(int))ctrl_c_handler;
 	err=sigaction(SIGINT, &act, NULL);
  
 	return(err);
@@ -4034,7 +4086,7 @@ int inst_abrt_handler(){
 	struct sigaction act;
  
 	bzero(&act, sizeof(struct sigaction));
-	act.sa_handler = (void *)abrt_handler;
+	act.sa_handler = (void(*)(int))abrt_handler;
 	err=sigaction(SIGABRT, &act, NULL);
  
 	return(err);
@@ -4045,7 +4097,7 @@ int inst_term_handler(){
 	struct sigaction act;
  
 	bzero(&act, sizeof(struct sigaction));
-	act.sa_handler = (void *)int_handler;
+	act.sa_handler = (void(*)(int))int_handler;
 	err=sigaction(SIGTERM, &act, NULL);
  
 	return(err);
@@ -4056,7 +4108,7 @@ int inst_alarm_handler(){
 	struct sigaction act;
  
 	bzero(&act, sizeof(struct sigaction));
-	act.sa_handler = (void *)alarm_handler;
+	act.sa_handler = (void(*)(int))alarm_handler;
 	err=sigaction(SIGALRM, &act, NULL);
  
 	return(err);
@@ -4067,7 +4119,7 @@ int inst_resize_handler(){
 	struct sigaction act;
  
 	bzero(&act, sizeof(struct sigaction));
-	act.sa_handler = (void *)resize_handler;
+	act.sa_handler = (void(*)(int))resize_handler;
 	err=sigaction(SIGWINCH, &act, NULL);
  
 	return(err);
@@ -4078,7 +4130,7 @@ int inst_pipe_handler(){
 	struct sigaction act;
  
 	bzero(&act, sizeof(struct sigaction));
-	act.sa_handler = (void *)pipe_handler;
+	act.sa_handler = (void(*)(int))pipe_handler;
 	err=sigaction(SIGPIPE, &act, NULL);
  
 	return(err);

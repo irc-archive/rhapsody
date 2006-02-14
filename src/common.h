@@ -82,6 +82,7 @@
 #define MAXFILELEN 1024
 #define MAXSERVERLEN MAXHOSTLEN
 #define MAXCHANNELLEN 64
+#define MAXUSERLEN 64
 #define MAXPASSLEN 256
 #define MAXTIMELEN 64
 #define MAXSCREENNAMES 64
@@ -93,6 +94,11 @@
 
 #define MENU_NORMAL 0
 #define MENU_WINDOWLIST 1
+
+#define PROXY_DIRECT 0
+#define PROXY_SOCKS4 1
+#define PROXY_SOCKS5 2
+#define PROXY_HTTP 3
 
 typedef struct screen_list_entry screen;
 typedef struct server_info server;
@@ -114,6 +120,9 @@ typedef struct config_server_data config_server;
 typedef struct config_channel_data config_channel;
 typedef struct config_user_data config_user;
 typedef struct channel_list_channel_info list_channel;
+
+typedef struct socks_info socksv4;
+typedef struct socks_info socksv5;
 
 struct screen_list_entry{  
         void *info;
@@ -150,6 +159,10 @@ struct server_info{
 	int connect_status;
 	int nickinuse;
 	int servernum;
+
+	int proxy;
+	int proxyfd;
+	int proxyactive;
 };
 
 struct channel_info{
@@ -187,38 +200,49 @@ struct chat_info{
 
 struct dcc_chat_info{
 	screen *screen;
+        server *server;
 	WINDOW *message;
 	int active;
 	int type;
-	unsigned long hostip;
-	unsigned int port;
+	unsigned long remoteip;
+	unsigned int remoteport;
 	unsigned long localip;
 	unsigned int localport;	
+	unsigned long connectip;
+	unsigned int connectport;	
 	char nick[MAXNICKLEN];
 	char dest[MAXDOMLEN];
-        server *server;
 	int dccfd;
 	int update;
-	int serverstatus;
+	int server_status;
+	int connect_status;
 	int direction;
 	int allowed;
+	int proxy;
+	int proxyfd;
+	int proxyactive;
 };
 
 struct dcc_file_info{
+        server *server;
 	int type;
 	int active;
 	char filename[MAXFILELEN];
+	char shortfilename[MAXFILELEN];
 	unsigned long size;
 	unsigned long byte;
 	unsigned long ackbyte;
-	unsigned long hostip;
-	unsigned int port;
+	unsigned long remoteip;
+	unsigned int remoteport;
 	unsigned long localip;
 	unsigned int localport;	
+	unsigned long connectip;
+	unsigned int connectport;	
 	char nick[MAXNICKLEN];
 	int dccfd;
 	int filefd;
-	int serverstatus;
+	int server_status;
+	int connect_status;
 	time_t starttime;
 	time_t last_activity_at;
 	time_t last_updated_at;
@@ -228,6 +252,9 @@ struct dcc_file_info{
 	dcc_file *prev;
 	//int direction;
 	int allowed;
+	int proxy;
+	int proxyfd;
+	int proxyactive;
 };
 
 struct transfer_info{
@@ -386,6 +413,21 @@ struct config_data{
 	bool channeltimestamps;
 	bool chattimestamps;
 	bool dcctimestamps;
+	
+	/* proxy settings */
+	int proxy;
+	char proxyusername[MAXUSERLEN];
+	char proxypassword[MAXPASSLEN];
+        char proxyhostname[MAXHOSTLEN];	
+	int proxyport;
+};
+
+struct socks_info {
+        int version;
+        char username[MAXUSERLEN];
+        char hostname[MAXHOSTLEN];
+        int port;	
+	int status;
 };
 
 inputline_entry *inputline_head;

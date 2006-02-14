@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2005 Adrian Gonera                                         */
+/*  Copyright (C) 2006 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -60,21 +60,21 @@ void progress_bar(WINDOW *win, int posy, int posx, int size, int percent){
 	int to_fill; 
 	int i;
 
-	to_fill = (size*percent)/100;
-	wattrset(win, make_color(PROGRESS_COLOR_F, PROGRESS_COLOR_B));
+	to_fill = (size * percent) / 100;
+	wattrset(win, COLOR_PAIR(PROGRESS_COLOR_B));
 	wattron(win, A_REVERSE);
 	wattron(win, A_BOLD);
-		for (i=0; i<size; i++){
-		if (i==to_fill+1){
-			if (has_colors){
-				wattrset(win, make_color(PROGRESS_COLOR_F, PROGRESS_COLOR_B));
+	for (i=0; i<size; i++){
+		if (i == to_fill+1){
+			if (has_colors()){
+				wattrset(win, COLOR_PAIR(PROGRESS_COLOR_F));
 				wattron(win, A_REVERSE);
 			}
 			else {
 				wattrset(win, A_NORMAL);
 			}
 		}
-	mvwaddch(win, posy, posx+i, ' ');
+		mvwaddch(win, posy, posx+i, ' ');
 	}
 	wattrset(win, A_NORMAL);
 }

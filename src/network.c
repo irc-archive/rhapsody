@@ -157,30 +157,35 @@ int send_ball(int sockfd, char *buffer, int len){
 
 int recv_ball(int sockfd, char *buffer, int len){
 	int numbytes;
-	char temp;
+	char temp[MAXDATASIZE];
 	int i;
 
-	i=0;
-	while(i<len-1){
-		numbytes=recv(sockfd, &temp, 1, 0);
-		if (numbytes  == -1) {
-            		#if (DEBUG & D_SOCKET) 
-				plog("Error receiving data in recv_ball()\n");
+	numbytes = recv(sockfd, &temp, len, 0);
+	if (numbytes  == -1){ 
+		if (errno==EAGAIN){
+			#if (DEBUG & D_SOCKET) 
+				plog ("Read would block in recv_all()");
 			#endif
 			return(0);
-		}	
-		// if EOF encountered
-		else if (numbytes == 0){
-			break;
-		}		
-		else{
-			buffer[i] = temp;
-			i++;
+		}
+		else {			
+			#if (DEBUG & D_SOCKET)
+				plog ("Error receiving data in recv_all()");
+			#endif
+			return(-1);
 		}
 	}
+	// if EOF encountered
+	else if (numbytes == 0){
+		return(-1);
+	}		
+	else{
+		memcpy(buffer, temp, numbytes); 
+	}
+
 	#if (DEBUG & D_SOCKET_BUFFER)
 		plog("%s\n", buffer);
 	#endif
-	return(i);
+	return(numbytes);
 }
 

@@ -20,6 +20,9 @@
 /*                                                                           */
 /*****************************************************************************/
 
+/* for extended errno definitions in Tru64 (OSF1) */
+#define _LIBC_POLLUTION_H_
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1473,7 +1476,7 @@ int get_transfer_info(int key, dcc_file *F){
 	if (F == NULL) return (E_CANCEL);
 
 	if (mainform == NULL){
-		addr.s_addr = htonl(F->hostip);
+		addr.s_addr = htonl(F->remoteip);
 
 		mainform = add_form("Transfer Info", 0x000, -1, -1, 38, 12, FORM_COLOR_MAIN, STYLE_TITLE);        
 		comp = (void *) add_Fbutton("OK", 16, 10, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
@@ -1493,7 +1496,7 @@ int get_transfer_info(int key, dcc_file *F){
 		rs = (rtime % 60);
 
 		sprintf(scratch, "Nick       : %s\nProgress   : %lu/%lu\nRemote IP  : %s\nRemote Port: %u\nElapsed    : %02d:%02d:%02d\nRemaining  : %02d:%02d:%02d\n", 
-			F->nick, F->byte, F->size, inet_ntoa(addr), F->port, eh, em, es, rh, rm, rs); 
+			F->nick, F->byte, F->size, inet_ntoa(addr), F->remoteport, eh, em, es, rh, rm, rs); 
 
 		text = add_Ftextarea("info", 2, 3, 36, 12, 0, -1, scratch);
 		add_form_textarea (mainform, text);
@@ -1528,7 +1531,7 @@ int allow_transfer(int key, dcc_file *F){
 	struct in_addr addr;
                
 	if (mainform == NULL){
-		addr.s_addr = htonl(F->hostip);
+		addr.s_addr = htonl(F->remoteip);
 
 		mainform = add_form("Incoming File", 0x000, -1, -1, 32, 9, FORM_COLOR_MAIN, STYLE_TITLE);
 		comp = (void *) add_Fbutton("Allow", 6, 7, 9, FORM_COLOR_BUTTON, E_OK, STYLE_CENTER_JUSTIFY);
@@ -1834,6 +1837,110 @@ form *create_identity_form(char *nick, char *altnick, char *name, char *user, ch
 	comp = (void *) add_Fbutton("OK", 23, 15, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
 	comp = (void *) add_Fbutton("Cancel", 30, 15, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
+         
+	return(form);
+}
+
+/** network settings ***************************************************************************/
+
+int get_network_settings(int key){
+	//static form *form = NULL;
+	Fcomponent *comp;
+	Ftextline *textline;
+	Fcheckbox_array *checkboxarray;
+        int event;
+
+	if (mainform == NULL){
+		mainform = create_network_settings_form(configuration.proxy, configuration.proxyhostname, 
+			configuration.proxyport, configuration.proxyusername, configuration.proxypassword);
+	}
+
+	event = process_form_events(mainform, key);
+		
+	if (event == FORM_ID_CANCEL){
+		mainform = remove_form(mainform);
+		return(E_CANCEL);
+	}
+
+	else if (event == FORM_ID_OK){
+		comp = form_component_by_id(mainform, FORM_ID_PROXYUSERNAME);
+		textline = comp->component;
+ 		strcpy(configuration.proxyusername, Ftextline_buffer_contents(textline));
+
+		comp = form_component_by_id(mainform, FORM_ID_PROXYPASSWORD);
+		textline = comp->component;
+ 		strcpy(configuration.proxypassword, Ftextline_buffer_contents(textline));
+
+		comp = form_component_by_id(mainform, FORM_ID_PROXYHOSTNAME);
+		textline = comp->component;
+ 		strcpy(configuration.proxyhostname, Ftextline_buffer_contents(textline));
+
+		comp = form_component_by_id(mainform, FORM_ID_PROXYPORT);
+		textline = comp->component;
+ 		configuration.proxyport = atoi(Ftextline_buffer_contents(textline));
+
+		comp = form_component_by_id(mainform, FORM_ID_PROXY);
+		checkboxarray = comp->component;
+		configuration.proxy = Fcheckbox_array_selected_id(checkboxarray);
+
+	 	configuration.changed = 1;
+		mainform = remove_form(mainform);
+		return(E_OK);
+	}
+	//else if (key == 10 || key == KEY_ENTER) process_form_events(form, E_NEXT);
+	
+	print_form(mainform);
+	return(key);
+}
+
+form *create_network_settings_form(int proxy, char *hostname, int port, char *user, char *pass){
+	void *comp;
+	form *form;
+	Fcheckbox *box;
+	Ftextarea *text;
+	char portbuffer[32];
+	int i;
+
+	form = add_form("Network Settings", 0x000, -1, -1, 36, 20, FORM_COLOR_MAIN, STYLE_TITLE);
+        
+	comp = (void *) add_Fcheckbox_array("Connection Type:", 2, 4, FORM_COLOR_CHECKBOX, 0);
+	add_form_component(form, comp, FORM_ID_PROXY, F_CHECKBOX_ARRAY);
+
+	box = add_Fcheckbox("Direct Connection", 32, 6, 4, 6, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
+	add_Fcheckbox_to_array((Fcheckbox_array *)comp, PROXY_DIRECT, box);
+
+	box = add_Fcheckbox("SOCKS v4", 32, 7, 4, 7, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
+	add_Fcheckbox_to_array((Fcheckbox_array *)comp, PROXY_SOCKS4, box);
+
+	box = add_Fcheckbox("SOCKS v5", 32, 8, 4, 8, FORM_COLOR_CHECKBOX, STYLE_CHECKBOX_STAR);
+	add_Fcheckbox_to_array((Fcheckbox_array *)comp, PROXY_SOCKS5, box);
+
+	Fcheckbox_array_select_by_id((Fcheckbox_array *)comp, proxy);
+
+	text = (void *) add_Ftextarea("Proxy", 2, 10, 20, 1, STYLE_LEFT_JUSTIFY, -1, "Proxy Settings:");
+	add_form_textarea (form, text);
+	
+	comp = (void *) add_Ftextline("Hostname", 2, 12, 12, 12, 1024, 22, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
+	add_form_component(form, comp, FORM_ID_PROXYHOSTNAME, F_TEXTLINE);
+	set_Ftextline_buffer(comp, hostname);
+
+	comp = (void *) add_Ftextline("Port", 2, 13, 12, 13, 5, 6, FORM_COLOR_TEXTLINE, 0, IN_NUM); 
+	add_form_component(form, comp, FORM_ID_PROXYPORT, F_TEXTLINE);
+	sprintf(portbuffer, "%d", port);
+	set_Ftextline_buffer(comp, portbuffer);
+
+	comp = (void *) add_Ftextline("Username", 2, 15, 12, 15, 128, 22, FORM_COLOR_TEXTLINE, 0, IN_LETTERS|IN_PUNCT);
+       	add_form_component(form, comp, FORM_ID_PROXYUSERNAME, F_TEXTLINE);
+	set_Ftextline_buffer(comp, user);
+
+	comp = (void *) add_Ftextline("Password", 2, 16, 12, 16, 128, 22, FORM_COLOR_TEXTLINE, STYLE_MASK_TEXT, IN_LETTERS|IN_PUNCT);
+       	add_form_component(form, comp, FORM_ID_PROXYPASSWORD, F_TEXTLINE);
+	set_Ftextline_buffer(comp, pass);
+
+	comp = (void *) add_Fbutton("OK", 19, 18, 6, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
+	add_form_component(form, comp, FORM_ID_OK, F_BUTTON);
+	comp = (void *) add_Fbutton("Cancel", 26, 18, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 	add_form_component(form, comp, FORM_ID_CANCEL, F_BUTTON);
          
 	return(form);

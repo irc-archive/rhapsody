@@ -1,6 +1,6 @@
 /*****************************************************************************/
 /*                                                                           */
-/*  Copyright (C) 2005 Adrian Gonera                                         */
+/*  Copyright (C) 2006 Adrian Gonera                                         */
 /*                                                                           */
 /*  This file is part of Rhapsody.                                           */
 /*                                                                           */
@@ -69,6 +69,13 @@ int read_config(char *config_file, config *C){
 	C->ctcpfinger[0] = 0;
 	C->ctcpuserinfo[0] = 0;
 	C->timestampformat[0] = 0;
+
+	C->proxy = PROXY_DIRECT;
+	C->proxyport = 1080;
+	strcpy(C->proxyusername, loginuser);
+	strcpy(C->proxypassword, "");
+	strcpy(C->proxyhostname, hostname);
+	
 
 	/* init the default color scheme */
 	C->menu_color_fg = DEFAULT_MENU_COLOR_F;
@@ -253,6 +260,27 @@ int read_config(char *config_file, config *C){
 						}
 						else if (strncasecmp(attrib, "INVITECOLOR", MAXDESCLEN) == 0){
 							C->invite_color = atoi(value);
+						}
+
+						else if (strncasecmp(attrib, "PROXY", MAXDESCLEN) == 0){
+							if (strcasecmp(value, "socks4") == 0){
+								C->proxy = PROXY_SOCKS4;
+							}
+							else if (strcasecmp(value, "socks5") == 0){
+								C->proxy = PROXY_SOCKS5;
+							}
+						}
+						else if (strncasecmp(attrib, "PROXYHOSTNAME", MAXDESCLEN) == 0){
+							strcpy(C->proxyhostname, value);
+						}
+						else if (strncasecmp(attrib, "PROXYPORT", MAXDESCLEN) == 0){
+							C->proxyport = atoi(value);
+						}
+						else if (strncasecmp(attrib, "PROXYUSERNAME", MAXDESCLEN) == 0){
+							strcpy(C->proxyusername, value);
+						}
+						else if (strncasecmp(attrib, "PROXYPASSWORD", MAXDESCLEN) == 0){
+							strcpy(C->proxypassword, value);
 						}
 					}
 					conv = sscanf(line, "%[^{ ] %[{]", attrib, value);
@@ -775,6 +803,17 @@ int writeconfig(char *config_file, config *C){
 	fprintf(fp, "modecolor = %d\n", C->mode_color);
 	fprintf(fp, "kickcolor = %d\n", C->kick_color);
 	fprintf(fp, "invitecolor = %d\n", C->invite_color);
+	fprintf(fp, "\n");
+
+	fprintf(fp, "# Proxy Settings\n");
+	fprintf(fp, "\n");
+	if (C->proxy == PROXY_SOCKS4) fprintf(fp, "proxy = socks4\n");
+	else if (C->proxy == PROXY_SOCKS5) fprintf(fp, "proxy = socks5\n");
+	else fprintf(fp, "proxy = direct\n");
+	fprintf(fp, "proxyhostname = %s\n", C->proxyhostname);
+	fprintf(fp, "proxyport = %d\n", C->proxyport);
+	fprintf(fp, "proxyusername = %s\n", C->proxyusername);
+	fprintf(fp, "proxypassword = %s\n", C->proxypassword);
 
 	if (!ferror(fp)){
 		fclose(fp);	

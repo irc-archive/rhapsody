@@ -13,9 +13,11 @@ src/rhapsody:
 
 install: $(PROGRAMNAME)
 	mkdir -p $(INSTALLPATH)
-	mkdir -p $(INSTALLPATH)/help
+	mkdir -p $(INSTDOCSPATH)
+	mkdir -p $(INSTDOCSPATH)/help
 	cp $(PROGRAMNAME) $(INSTALLPATH)
-	cp help/*.hlp $(INSTALLPATH)/help
+	cp docs/* $(INSTDOCSPATH)
+	cp help/*.hlp $(INSTDOCSPATH)/help
 
 clean:
 	cd src; make clean

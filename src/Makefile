@@ -1,13 +1,14 @@
 include Makefile.inc
 
-LOCALFLAGS=-g -Wall -Wno-unused
+LOCALFLAGS=
 
 LIBS=$(BASELIBS)
 LIBPATHS=$(BASELIBPATHS)
 INCPATHS=$(BASEINCPATHS)
 FLAGS=$(BASEFLAGS) $(LOCALFLAGS)
 
-OBJECTS=screen.o log.o network.o parser.o ctcp.o dcc.o ncolor.o main.o cmenu.o config.o forms.o option.o comm.o misc.o
+OBJECTS=screen.o log.o network.o parser.o ctcp.o dcc.o ncolor.o main.o cmenu.o \
+config.o forms.o option.o comm.o misc.o socks4.o socks5.o
 
 
 all: autodefs.h $(PROGRAMNAME)
@@ -61,6 +62,12 @@ option.o: option.c option.h defines.h common.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 misc.o: misc.c misc.h defines.h common.h
+	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
+
+socks4.o: socks4.c socks4.h defines.h common.h
+	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
+
+socks5.o: socks5.c socks5.h defines.h common.h
 	$(CC) $(FLAGS) $(INCPATHS) -c -o $@ $<
 
 autodefs.h:

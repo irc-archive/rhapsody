@@ -1369,11 +1369,11 @@ dcc_chat *add_incoming_dcc_chat(char *nick, char *dest, server *s, unsigned long
 	}
 	strcpy(new->nick, nick);
 	strcpy(new->dest, dest);
-	new->hostip=hostip;
-	new->port=port;
+	new->remoteip=hostip;
+	new->remoteport=port;
 	new->type=DCC_CHAT;
 	new->update = 0;
-	new->serverstatus = 0;
+	new->server_status = 0;
 	new->server = s;
 	new->allowed = 0;
 	new->direction = DCC_RECEIVE;
@@ -1392,11 +1392,11 @@ dcc_chat *add_outgoing_dcc_chat(char *nick, char *dest, server *s){
 	}
 	strcpy(new->nick, nick);
 	strcpy(new->dest, dest);
-	new->hostip=0;
-	new->port=0;
+	new->remoteip=0;
+	new->remoteport=0;
 	new->type=DCC_CHAT;
 	new->update = 0;
-	new->serverstatus = 0;
+	new->server_status = 0;
 	new->server = s;
 	new->allowed = 1;
 	new->direction = DCC_SEND;
@@ -2192,7 +2192,7 @@ int print_help_file(help *H, char *filename){
 	char line[4096];
 	char path[4096];
 
-	strcpy(path, INSTALL_PATH);
+	strcpy(path, DOCS_PATH);
 	strcat(path, "/help/");
 	strcat(path, filename);
 
@@ -2436,7 +2436,7 @@ int print_inputline(inputwin *inputline){
 	int i, j;
 	int bgcolor, fgcolor, fg_set, bg_set;
 	char colorcode[8];
-	unsigned char *buffer;
+	char *buffer;
 	WINDOW *inputwin;
 
 	int attr_bold;

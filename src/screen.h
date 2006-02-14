@@ -245,11 +245,11 @@ void move_input_cursor(inputwin *I, int spaces);
 
 void set_inputline_update_status(inputwin *S, int update);
 void unset_inputline_update_status(inputwin *S, int update);
-inline int inputline_update_status(inputwin *S);
+int inputline_update_status(inputwin *S);
 
 void set_menuline_update_status(menuwin *S, int update);
 void unset_menuline_update_status(menuwin *S, int update);
-inline int menuline_update_status(menuwin *S);
+int menuline_update_status(menuwin *S);
 
 void set_statusline_update_status(statuswin *S, int update);
 void unset_statusline_update_status(statuswin *S, int update);
