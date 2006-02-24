@@ -1,0 +1,5 @@
+#define INSTALL_PATH "/home/adrian/rhapsody"
+#define DOCS_PATH "/home/adrian/rhapsody/docs"
+#define PROGRAM_NAME "rhapsody"
+#define PROGRAM_VERSION "0.28b"
+#define OS_NAME "Linux"

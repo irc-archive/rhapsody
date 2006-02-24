@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PROGRAMNAME="rhapsody"
-PROGRAMVER="0.27b"
+PROGRAMVER="0.28b"
 
 ###########################################################
 # Get command line parameters                             #
@@ -366,6 +366,7 @@ echo "#define INSTALL_PATH \"$INSTALLPATH\"" > autodefs.h
 echo "#define DOCS_PATH \"$INSTDOCSPATH\"" >> autodefs.h
 echo "#define PROGRAM_NAME \"$PROGRAMNAME\"" >> autodefs.h
 echo "#define PROGRAM_VERSION \"$PROGRAMVER\"" >> autodefs.h
+echo "#define OS_NAME \"$OS\"" >> autodefs.h
 
 echo "Finished creating makefile, run 'make clean' then 'make' to compile, then"
 echo "finally 'make install' to install. The installation step is optional. You"

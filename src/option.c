@@ -1571,7 +1571,8 @@ int view_about(int key){
 		comp = (void *) add_Fbutton("OK", 16, 7, 8, FORM_COLOR_BUTTON, E_COMPONENT_ID, STYLE_CENTER_JUSTIFY);
 		add_form_component(mainform, comp, E_OK, F_BUTTON);
 		text = add_Ftextarea("Version", 2, 3, 36, 4, STYLE_CENTER_JUSTIFY, -1, 
-			CODE_NAME"\nVersion "CODE_VERSION" "CODE_STATE" "CODE_BUILD"\nCopyright (C) "CODE_COPYRIGHT", "CODE_DEVELOPER);
+			CODE_NAME"\nVersion "CODE_VERSION" "CODE_STATE" - "OS_NAME
+			"\nCopyright (C) "CODE_COPYRIGHT", "CODE_DEVELOPER);
 		add_form_textarea (mainform, text);
 	}
 

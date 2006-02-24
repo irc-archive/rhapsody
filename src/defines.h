@@ -9,7 +9,7 @@
 #define CODE_BUILD ""
 #define CODE_COPYRIGHT "2006"
 #define CODE_DEVELOPER "Adrian Gonera"
-#define CODE_ID CODE_NAME" Version "CODE_VERSION" "CODE_STATE
+#define CODE_ID CODE_NAME" Version "CODE_VERSION" "CODE_STATE" - "OS_NAME
 
 #define DEFAULT_CONFIG_FILE ".rhapsodyrc"
 #define DEFAULT_NICKNAME "unnamed"

@@ -378,6 +378,7 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 				D->server_status = -1;
 				return(-1);
 			}
+			fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 		        listen(D->dccfd, 1);
 
 			D->server_status = 1;
@@ -417,7 +418,6 @@ int start_outgoing_dcc_chat(dcc_chat *D){
 				close(D->dccfd);
 				D->dccfd = new_fd;
 				D->active = 1;
-				fcntl(D->dccfd, F_SETFL, O_NONBLOCK);
 				return(1);
 			}		
 		}
